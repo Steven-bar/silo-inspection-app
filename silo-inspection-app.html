@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Silo Inspection – Barton Fabrications</title>
+<style>
+  :root {
+    --orange: #E8590C;
+    --orange-dark: #C44A08;
+    --grey: #2C2C2C;
+    --light: #F5F5F5;
+    --border: #DCDCDC;
+    --major: #D32F2F;
+    --minor: #F57C00;
+    --monitor: #388E3C;
+    --card: #FFFFFF;
+    --shadow: 0 2px 8px rgba(0,0,0,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--light); color: var(--grey); min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    background: var(--orange);
+    color: white;
+    padding: 16px 20px 14px;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .header-back {
+    background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 0 4px;
+    line-height: 1;
+  }
+  .header h1 { font-size: 17px; font-weight: 700; flex: 1; line-height: 1.2; }
+  .header .step-label { font-size: 12px; opacity: 0.85; }
+
+  /* SCREENS */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* HOME */
+  .home-hero {
+    background: var(--orange);
+    padding: 48px 24px 40px;
+    text-align: center;
+    color: white;
+  }
+  .home-logo { font-size: 48px; margin-bottom: 12px; }
+  .home-hero h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .home-hero p { font-size: 14px; opacity: 0.9; line-height: 1.5; }
+
+  .home-body { padding: 24px 20px; }
+  .home-body h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 12px; }
+
+  .inspection-card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .inspection-card:active { border-color: var(--orange); }
+  .inspection-card .ic-icon { font-size: 28px; flex-shrink: 0; }
+  .inspection-card .ic-body { flex: 1; }
+  .inspection-card .ic-title { font-size: 15px; font-weight: 700; }
+  .inspection-card .ic-sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .inspection-card .ic-arrow { color: #CCC; font-size: 18px; }
+
+  /* CONTENT */
+  .content { padding: 20px; }
+
+  /* FORM */
+  .form-group { margin-bottom: 20px; }
+  .form-label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #555; text-transform: uppercase; letter-spacing: 0.3px; }
+  .form-input {
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 16px; background: white;
+    appearance: none; -webkit-appearance: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus { outline: none; border-color: var(--orange); }
+  select.form-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+
+  /* PHOTO CAPTURE */
+  .photo-box {
+    border: 2px dashed var(--border); border-radius: 14px;
+    min-height: 140px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer; background: #FAFAFA; position: relative; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .photo-box:active { border-color: var(--orange); }
+  .photo-box.has-photo { border-style: solid; border-color: var(--orange); }
+  .photo-box img { width: 100%; height: 200px; object-fit: cover; border-radius: 12px; display: block; }
+  .photo-box-placeholder { text-align: center; padding: 20px; }
+  .photo-box-placeholder .icon { font-size: 36px; margin-bottom: 8px; }
+  .photo-box-placeholder p { font-size: 13px; color: #999; }
+  .photo-box input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .photo-retake { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+
+  /* BUTTONS */
+  .btn {
+    display: block; width: 100%; padding: 16px; border: none; border-radius: 14px;
+    font-size: 17px; font-weight: 700; cursor: pointer; text-align: center;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { opacity: 0.85; transform: scale(0.98); }
+  .btn-primary { background: var(--orange); color: white; }
+  .btn-secondary { background: white; color: var(--orange); border: 2px solid var(--orange); }
+  .btn-ghost { background: transparent; color: #888; font-size: 15px; padding: 12px; }
+  .btn-sm { font-size: 14px; padding: 10px 16px; border-radius: 10px; display: inline-block; width: auto; }
+  .btn-danger { background: var(--major); color: white; }
+
+  /* SILO PROGRESS */
+  .silo-progress {
+    display: flex; gap: 6px; padding: 16px 20px 0; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .silo-progress::-webkit-scrollbar { display: none; }
+  .silo-pip {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid var(--border); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #AAA; background: white; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .silo-pip.done { background: #E8F5E9; border-color: var(--monitor); color: var(--monitor); }
+  .silo-pip.active { background: var(--orange); border-color: var(--orange); color: white; }
+  .silo-pip.has-major { background: #FFEBEE; border-color: var(--major); color: var(--major); }
+
+  /* ISSUE CARD */
+  .issue-card {
+    background: white; border-radius: 14px; padding: 16px;
+    margin-bottom: 12px; box-shadow: var(--shadow); border-left: 4px solid var(--border);
+  }
+  .issue-card.major { border-left-color: var(--major); }
+  .issue-card.minor { border-left-color: var(--minor); }
+  .issue-card.monitor { border-left-color: var(--monitor); }
+  .issue-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .issue-badge {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 3px 8px; border-radius: 6px; flex-shrink: 0;
+  }
+  .badge-major { background: #FFEBEE; color: var(--major); }
+  .badge-minor { background: #FFF3E0; color: var(--minor); }
+  .badge-monitor { background: #E8F5E9; color: var(--monitor); }
+  .issue-text { font-size: 14px; line-height: 1.5; flex: 1; margin-right: 8px; }
+  .issue-photo { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; margin-top: 10px; }
+  .issue-delete { background: none; border: none; color: #CCC; font-size: 18px; cursor: pointer; padding: 0; margin-left: 4px; flex-shrink: 0; }
+
+  /* ADD ISSUE PANEL */
+  .add-issue-panel {
+    background: white; border-radius: 14px; padding: 16px;
+    margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .add-issue-panel h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #555; }
+
+  /* SEVERITY PICKER */
+  .severity-picker { display: flex; gap: 8px; margin-bottom: 12px; }
+  .sev-btn {
+    flex: 1; padding: 10px 4px; border-radius: 10px; border: 2px solid var(--border);
+    font-size: 12px; font-weight: 700; text-align: center; cursor: pointer; background: white;
+    transition: all 0.15s;
+  }
+  .sev-btn.selected-major { background: #FFEBEE; border-color: var(--major); color: var(--major); }
+  .sev-btn.selected-minor { background: #FFF3E0; border-color: var(--minor); color: var(--minor); }
+  .sev-btn.selected-monitor { background: #E8F5E9; border-color: var(--monitor); color: var(--monitor); }
+
+  /* SUMMARY */
+  .summary-header { background: var(--grey); color: white; padding: 20px; border-radius: 14px; margin-bottom: 16px; }
+  .summary-header h3 { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+  .summary-header p { font-size: 13px; opacity: 0.75; }
+  .summary-stats { display: flex; gap: 10px; margin-top: 14px; }
+  .stat-box { flex: 1; background: rgba(255,255,255,0.12); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .stat-box .stat-num { font-size: 22px; font-weight: 900; }
+  .stat-box .stat-lbl { font-size: 10px; opacity: 0.8; text-transform: uppercase; margin-top: 2px; }
+
+  .silo-summary-card {
+    background: white; border-radius: 14px; padding: 16px; margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .ssc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .ssc-name { font-size: 16px; font-weight: 700; }
+  .ssc-status { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .status-pass { background: #E8F5E9; color: var(--monitor); }
+  .status-fail { background: #FFEBEE; color: var(--major); }
+  .status-ok { background: #FFF3E0; color: var(--minor); }
+  .ssc-counts { font-size: 12px; color: #888; margin-bottom: 10px; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: var(--grey); color: white; padding: 12px 20px; border-radius: 30px;
+    font-size: 14px; font-weight: 600; z-index: 999; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 32px 20px; color: #BBB; }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; }
+
+  .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .photo-grid img { width: 100%; height: 90px; object-fit: cover; border-radius: 10px; }
+
+  .silo-name-tag {
+    background: var(--orange); color: white; display: inline-block;
+    padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  textarea.form-input { resize: none; line-height: 1.5; min-height: 88px; }
+
+  .actions-row { display: flex; gap: 10px; margin-top: 16px; }
+  .actions-row .btn { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================ -->
+<!-- SCREEN: HOME -->
+<!-- ============================================================ -->
+<div class="screen active" id="screen-home">
+  <div class="home-hero">
+    <div class="home-logo">🏭</div>
+    <h2>Silo Inspector</h2>
+    <p>Barton Fabrications<br>PUWER Inspection Tool</p>
+  </div>
+  <div class="home-body">
+    <h3>Start</h3>
+    <div class="inspection-card" onclick="startNew()">
+      <div class="ic-icon">📋</div>
+      <div class="ic-body">
+        <div class="ic-title">New Inspection</div>
+        <div class="ic-sub">Begin a fresh site visit</div>
+      </div>
+      <div class="ic-arrow">›</div>
+    </div>
+
+    <h3 style="margin-top:20px">Saved Inspections</h3>
+    <div id="saved-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCREEN: SITE SETUP -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-site">
+  <div class="header">
+    <button class="header-back" onclick="goHome()">‹</button>
+    <div>
+      <div class="header h1">Site Details</div>
+      <div class="step-label">Step 1 of 3</div>
+    </div>
+  </div>
+  <div class="content">
+
+    <div class="form-group">
+      <label class="form-label">Site Photo</label>
+      <div class="photo-box" id="site-photo-box">
+        <label for="site-photo-input" class="photo-box-placeholder" id="site-photo-placeholder">
+          <div class="icon">📷</div>
+          <p>Tap to take a photo of the site</p>
+        </label>
+        <img id="site-photo-img" style="display:none" />
+        <label for="site-photo-input" class="photo-retake" id="site-photo-retake" style="display:none">Retake</label>
+        <input type="file" accept="image/*" capture="environment" id="site-photo-input" style="display:none" onchange="handlePhoto(this,'site-photo-img','site-photo-placeholder','site-photo-box','site-photo-retake')">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Client Name</label>
+      <input class="form-input" type="text" id="client-name" placeholder="e.g. Wavin" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Site Name / Location</label>
+      <input class="form-input" type="text" id="site-name" placeholder="e.g. Chippenham" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Inspector Name</label>
+      <input class="form-input" type="text" id="inspector-name" placeholder="e.g. Steven Dance" autocomplete="off" value="">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Inspection Date</label>
+      <input class="form-input" type="date" id="inspection-date">
+    </div>
+
+    <button class="btn btn-primary" onclick="goToSiloCount()">Continue →</button>
+    <button class="btn btn-ghost" onclick="goHome()">Cancel</button>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCREEN: SILO COUNT -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-count">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-site')">‹</button>
+    <div>
+      <div class="header h1">Number of Silos</div>
+      <div class="step-label">Step 2 of 3</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="form-group">
+      <label class="form-label">How many silos on this site?</label>
+      <input class="form-input" type="number" id="silo-count" min="1" max="50" placeholder="e.g. 10">
+    </div>
+    <button class="btn btn-primary" onclick="goToSilos()">Start Inspection →</button>
+    <button class="btn btn-ghost" onclick="showScreen('screen-site')">Back</button>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCREEN: SILO INSPECTION -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-silo">
+  <div class="header">
+    <button class="header-back" onclick="confirmLeave()">‹</button>
+    <div style="flex:1">
+      <div class="header h1" id="silo-header-title">Silo Inspection</div>
+      <div class="step-label" id="silo-header-sub">Step 3 of 3</div>
+    </div>
+    <button style="background:none;border:none;color:white;font-size:22px;cursor:pointer" onclick="showSummary()" title="View Summary">📊</button>
+  </div>
+
+  <!-- Silo navigation pills -->
+  <div class="silo-progress" id="silo-pips"></div>
+
+  <div class="content">
+    <!-- Silo name input (shown only when unnamed) -->
+    <div id="silo-name-section">
+      <div class="form-group">
+        <label class="form-label">Silo Name / ID</label>
+        <input class="form-input" type="text" id="silo-name-input" placeholder="e.g. N1, Silo 1, North Silo">
+      </div>
+      <button class="btn btn-primary" onclick="setSiloName()">Set Name & Add Issues →</button>
+    </div>
+
+    <!-- Issues section (shown after name is set) -->
+    <div id="silo-issues-section" style="display:none">
+      <div class="silo-name-tag" id="current-silo-tag"></div>
+
+      <!-- Existing issues -->
+      <div id="issues-list"></div>
+
+      <!-- Add issue form -->
+      <div class="add-issue-panel" id="add-issue-panel">
+        <h4>➕ Add Issue</h4>
+
+        <div class="severity-picker">
+          <div class="sev-btn selected-major" id="sev-major" onclick="selectSeverity('major')">🔴 Major</div>
+          <div class="sev-btn" id="sev-minor" onclick="selectSeverity('minor')">🟡 Minor</div>
+          <div class="sev-btn" id="sev-monitor" onclick="selectSeverity('monitor')">🟢 Monitor</div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px">
+          <textarea class="form-input" id="issue-description" placeholder="Describe the issue…" rows="3"></textarea>
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px">
+          <div class="photo-box" id="issue-photo-box">
+            <label for="issue-photo-input" class="photo-box-placeholder" id="issue-photo-placeholder">
+              <div class="icon">📷</div>
+              <p>Tap to take a photo (optional)</p>
+            </label>
+            <img id="issue-photo-img" style="display:none" />
+            <label for="issue-photo-input" class="photo-retake" id="issue-photo-retake" style="display:none">Retake</label>
+            <input type="file" accept="image/*" capture="environment" id="issue-photo-input" style="display:none" onchange="handlePhoto(this,'issue-photo-img','issue-photo-placeholder','issue-photo-box','issue-photo-retake')">
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-sm" onclick="addIssue()">Add Issue</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Navigation -->
+      <div class="actions-row">
+        <button class="btn btn-secondary" id="prev-silo-btn" onclick="prevSilo()">‹ Prev</button>
+        <button class="btn btn-primary" id="next-silo-btn" onclick="nextSilo()">Next ›</button>
+      </div>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="showSummary()">View Summary 📊</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCREEN: SUMMARY -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-summary">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-silo')">‹</button>
+    <div>
+      <div class="header h1">Inspection Summary</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="summary-header" id="summary-header"></div>
+    <div id="summary-silos"></div>
+    <button class="btn btn-primary" onclick="exportJSON()">📤 Export Inspection Data</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="showScreen('screen-silo')">Continue Inspecting</button>
+    <button class="btn btn-ghost" style="margin-top:4px" onclick="goHome()">Home</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let currentInspection = null;
+let currentSiloIndex = 0;
+let currentSeverity = 'major';
+let currentIssuePhotoData = null;
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Set today's date
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('inspection-date').value = today;
+
+  // Prefill inspector name if saved
+  const savedName = localStorage.getItem('bf_inspector_name');
+  if (savedName) document.getElementById('inspector-name').value = savedName;
+
+  renderSavedList();
+});
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goHome() {
+  showScreen('screen-home');
+  renderSavedList();
+}
+
+function confirmLeave() {
+  if (confirm('Leave this inspection? Your progress is auto-saved.')) {
+    showScreen('screen-count');
+  }
+}
+
+// ============================================================
+// PHOTO HANDLING
+// ============================================================
+function handlePhoto(input, imgId, placeholderId, boxId, retakeId) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    // Compress using canvas — iPhone photos can be 5-8MB, shrink to max 1200px
+    const origImg = new Image();
+    origImg.onload = () => {
+      const MAX = 1200;
+      let w = origImg.width, h = origImg.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(origImg, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.75);
+
+      const img = document.getElementById(imgId);
+      img.src = compressed;
+      img.style.display = 'block';
+      document.getElementById(placeholderId).style.display = 'none';
+      document.getElementById(boxId).classList.add('has-photo');
+      document.getElementById(retakeId).style.display = 'block';
+      if (input.id === 'issue-photo-input') {
+        currentIssuePhotoData = compressed;
+      }
+    };
+    origImg.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function getSitePhotoData() {
+  const img = document.getElementById('site-photo-img');
+  return img.style.display !== 'none' ? img.src : null;
+}
+
+// ============================================================
+// HOME
+// ============================================================
+function startNew() {
+  currentInspection = {
+    id: Date.now(),
+    clientName: '',
+    siteName: '',
+    inspectorName: '',
+    date: '',
+    sitePhoto: null,
+    silos: [],
+    createdAt: new Date().toISOString()
+  };
+  showScreen('screen-site');
+}
+
+function renderSavedList() {
+  const container = document.getElementById('saved-list');
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('bf_inspection_')) keys.push(k);
+  }
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No saved inspections yet</p></div>';
+    return;
+  }
+  keys.sort().reverse();
+  container.innerHTML = keys.map(k => {
+    const d = JSON.parse(localStorage.getItem(k));
+    const majors = d.silos.reduce((n, s) => n + s.issues.filter(i => i.severity === 'major').length, 0);
+    const total = d.silos.reduce((n, s) => n + s.issues.length, 0);
+    return `
+    <div class="inspection-card" onclick="loadInspection('${k}')">
+      <div class="ic-icon">📋</div>
+      <div class="ic-body">
+        <div class="ic-title">${d.clientName || 'Unnamed'} – ${d.siteName || 'No site'}</div>
+        <div class="ic-sub">${d.date || 'No date'} · ${d.silos.length} silo(s) · ${total} issue(s)${majors > 0 ? ` · <span style="color:var(--major)">${majors} major</span>` : ''}</div>
+      </div>
+      <div class="ic-arrow">›</div>
+    </div>`;
+  }).join('');
+}
+
+function loadInspection(key) {
+  currentInspection = JSON.parse(localStorage.getItem(key));
+  currentSiloIndex = 0;
+  renderSiloScreen();
+  showScreen('screen-silo');
+}
+
+// ============================================================
+// SITE SETUP
+// ============================================================
+function goToSiloCount() {
+  const client = document.getElementById('client-name').value.trim();
+  const site = document.getElementById('site-name').value.trim();
+  const inspector = document.getElementById('inspector-name').value.trim();
+  const date = document.getElementById('inspection-date').value;
+  if (!client || !site || !inspector || !date) {
+    toast('Please fill in all details');
+    return;
+  }
+  localStorage.setItem('bf_inspector_name', inspector);
+  currentInspection.clientName = client;
+  currentInspection.siteName = site;
+  currentInspection.inspectorName = inspector;
+  currentInspection.date = date;
+  currentInspection.sitePhoto = getSitePhotoData();
+  showScreen('screen-count');
+}
+
+// ============================================================
+// SILO COUNT
+// ============================================================
+function goToSilos() {
+  const count = parseInt(document.getElementById('silo-count').value);
+  if (!count || count < 1) { toast('Enter number of silos'); return; }
+
+  // Preserve existing silos if already started
+  const existing = currentInspection.silos.length;
+  if (count > existing) {
+    for (let i = existing; i < count; i++) {
+      currentInspection.silos.push({ name: '', issues: [] });
+    }
+  } else if (count < existing) {
+    if (!confirm(`Reduce to ${count} silos? Extra silo data will be removed.`)) return;
+    currentInspection.silos = currentInspection.silos.slice(0, count);
+  }
+
+  currentSiloIndex = 0;
+  saveInspection();
+  renderSiloScreen();
+  showScreen('screen-silo');
+}
+
+// ============================================================
+// SILO INSPECTION
+// ============================================================
+function renderSiloScreen() {
+  const silo = currentInspection.silos[currentSiloIndex];
+  const total = currentInspection.silos.length;
+
+  document.getElementById('silo-header-title').textContent =
+    silo.name ? `${silo.name}` : `Silo ${currentSiloIndex + 1} of ${total}`;
+  document.getElementById('silo-header-sub').textContent =
+    `Silo ${currentSiloIndex + 1} of ${total}`;
+
+  // Pips
+  const pips = document.getElementById('silo-pips');
+  pips.innerHTML = currentInspection.silos.map((s, i) => {
+    const hasMajor = s.issues.some(x => x.severity === 'major');
+    const isDone = s.name !== '';
+    let cls = '';
+    if (i === currentSiloIndex) cls = 'active';
+    else if (hasMajor) cls = 'has-major';
+    else if (isDone) cls = 'done';
+    return `<div class="silo-pip ${cls}" onclick="jumpToSilo(${i})">${s.name || i + 1}</div>`;
+  }).join('');
+
+  // Name vs issues section
+  if (!silo.name) {
+    document.getElementById('silo-name-input').value = '';
+    document.getElementById('silo-name-section').style.display = 'block';
+    document.getElementById('silo-issues-section').style.display = 'none';
+  } else {
+    document.getElementById('silo-name-section').style.display = 'none';
+    document.getElementById('silo-issues-section').style.display = 'block';
+    document.getElementById('current-silo-tag').textContent = silo.name;
+    renderIssues();
+  }
+
+  // Prev/next buttons
+  document.getElementById('prev-silo-btn').disabled = currentSiloIndex === 0;
+  document.getElementById('next-silo-btn').textContent =
+    currentSiloIndex === total - 1 ? 'Finish 🏁' : 'Next Silo ›';
+
+  // Reset issue form
+  resetIssueForm();
+}
+
+function setSiloName() {
+  const name = document.getElementById('silo-name-input').value.trim();
+  if (!name) { toast('Enter a silo name'); return; }
+  currentInspection.silos[currentSiloIndex].name = name;
+  saveInspection();
+  renderSiloScreen();
+}
+
+function jumpToSilo(i) {
+  currentSiloIndex = i;
+  renderSiloScreen();
+}
+
+function prevSilo() {
+  if (currentSiloIndex > 0) {
+    currentSiloIndex--;
+    renderSiloScreen();
+  }
+}
+
+function nextSilo() {
+  const total = currentInspection.silos.length;
+  if (currentSiloIndex < total - 1) {
+    currentSiloIndex++;
+    renderSiloScreen();
+  } else {
+    showSummary();
+  }
+}
+
+// ============================================================
+// ISSUES
+// ============================================================
+function selectSeverity(sev) {
+  currentSeverity = sev;
+  ['major','minor','monitor'].forEach(s => {
+    const el = document.getElementById('sev-' + s);
+    el.className = 'sev-btn';
+    if (s === sev) el.classList.add('selected-' + s);
+  });
+}
+
+function addIssue() {
+  const desc = document.getElementById('issue-description').value.trim();
+  if (!desc) { toast('Describe the issue first'); return; }
+
+  const issue = {
+    id: Date.now(),
+    severity: currentSeverity,
+    description: desc,
+    photo: currentIssuePhotoData
+  };
+
+  currentInspection.silos[currentSiloIndex].issues.push(issue);
+  saveInspection();
+  renderIssues();
+  renderSiloScreen(); // update pips
+  resetIssueForm();
+  toast('Issue added ✓');
+}
+
+function deleteIssue(issueId) {
+  if (!confirm('Remove this issue?')) return;
+  currentInspection.silos[currentSiloIndex].issues =
+    currentInspection.silos[currentSiloIndex].issues.filter(i => i.id !== issueId);
+  saveInspection();
+  renderIssues();
+  renderSiloScreen();
+}
+
+function renderIssues() {
+  const issues = currentInspection.silos[currentSiloIndex].issues;
+  const container = document.getElementById('issues-list');
+  if (issues.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No issues logged yet — add one below</p></div>';
+    return;
+  }
+  container.innerHTML = issues.map(issue => `
+    <div class="issue-card ${issue.severity}">
+      <div class="issue-header">
+        <div class="issue-text">${escapeHtml(issue.description)}</div>
+        <span class="issue-badge badge-${issue.severity}">${issue.severity}</span>
+        <button class="issue-delete" onclick="deleteIssue(${issue.id})">✕</button>
+      </div>
+      ${issue.photo ? `<img class="issue-photo" src="${issue.photo}" alt="Issue photo">` : ''}
+    </div>
+  `).join('');
+}
+
+function resetIssueForm() {
+  document.getElementById('issue-description').value = '';
+  // Reset photo
+  currentIssuePhotoData = null;
+  const img = document.getElementById('issue-photo-img');
+  img.src = ''; img.style.display = 'none';
+  document.getElementById('issue-photo-placeholder').style.display = 'block';
+  document.getElementById('issue-photo-box').classList.remove('has-photo');
+  document.getElementById('issue-photo-retake').style.display = 'none';
+  document.getElementById('issue-photo-input').value = '';
+  // Keep severity
+  selectSeverity(currentSeverity);
+}
+
+// ============================================================
+// SUMMARY
+// ============================================================
+function showSummary() {
+  const insp = currentInspection;
+  const allIssues = insp.silos.flatMap(s => s.issues);
+  const majors = allIssues.filter(i => i.severity === 'major').length;
+  const minors = allIssues.filter(i => i.severity === 'minor').length;
+  const monitors = allIssues.filter(i => i.severity === 'monitor').length;
+
+  document.getElementById('summary-header').innerHTML = `
+    <h3>${insp.clientName} — ${insp.siteName}</h3>
+    <p>${insp.date} · ${insp.inspectorName}</p>
+    <div class="summary-stats">
+      <div class="stat-box"><div class="stat-num">${insp.silos.length}</div><div class="stat-lbl">Silos</div></div>
+      <div class="stat-box" style="background:rgba(211,47,47,0.25)"><div class="stat-num">${majors}</div><div class="stat-lbl">Major</div></div>
+      <div class="stat-box" style="background:rgba(245,124,0,0.25)"><div class="stat-num">${minors}</div><div class="stat-lbl">Minor</div></div>
+      <div class="stat-box" style="background:rgba(56,142,60,0.25)"><div class="stat-num">${monitors}</div><div class="stat-lbl">Monitor</div></div>
+    </div>
+  `;
+
+  document.getElementById('summary-silos').innerHTML = insp.silos.map((silo, i) => {
+    const maj = silo.issues.filter(x => x.severity === 'major').length;
+    const min = silo.issues.filter(x => x.severity === 'minor').length;
+    const mon = silo.issues.filter(x => x.severity === 'monitor').length;
+    const status = maj > 0 ? 'FAIL' : silo.issues.length > 0 ? 'ADVISORY' : 'PASS';
+    const statusCls = maj > 0 ? 'status-fail' : silo.issues.length > 0 ? 'status-ok' : 'status-pass';
+    return `
+    <div class="silo-summary-card">
+      <div class="ssc-header">
+        <div class="ssc-name">${silo.name || 'Silo ' + (i+1)}</div>
+        <div class="ssc-status ${statusCls}">${status}</div>
+      </div>
+      <div class="ssc-counts">${maj > 0 ? `🔴 ${maj} Major ` : ''}${min > 0 ? `🟡 ${min} Minor ` : ''}${mon > 0 ? `🟢 ${mon} Monitor` : ''}${silo.issues.length === 0 ? '✅ No issues' : ''}</div>
+      ${silo.issues.map(issue => `
+        <div class="issue-card ${issue.severity}" style="margin-bottom:8px">
+          <div class="issue-header">
+            <div class="issue-text">${escapeHtml(issue.description)}</div>
+            <span class="issue-badge badge-${issue.severity}">${issue.severity}</span>
+          </div>
+          ${issue.photo ? `<img class="issue-photo" src="${issue.photo}" alt="">` : ''}
+        </div>
+      `).join('')}
+      <button class="btn btn-secondary btn-sm" onclick="jumpAndEdit(${i})" style="margin-top:4px">Edit Silo</button>
+    </div>`;
+  }).join('');
+
+  showScreen('screen-summary');
+}
+
+function jumpAndEdit(i) {
+  currentSiloIndex = i;
+  renderSiloScreen();
+  showScreen('screen-silo');
+}
+
+// ============================================================
+// SAVE / EXPORT
+// ============================================================
+function saveInspection() {
+  localStorage.setItem('bf_inspection_' + currentInspection.id, JSON.stringify(currentInspection));
+}
+
+function exportJSON() {
+  const data = JSON.stringify(currentInspection, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName = (currentInspection.clientName || 'inspection').replace(/\s+/g, '_');
+  a.href = url; a.download = `silo_inspection_${safeName}_${currentInspection.date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported ✓');
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
