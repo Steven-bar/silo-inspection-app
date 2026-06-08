@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="app-icon.png">
 <title>Silo Inspection – Barton Fabrications</title>
 <style>
   :root {
-    --orange: #E8590C;
-    --orange-dark: #C44A08;
+    --orange: #1A3A6B;
+    --orange-dark: #142D56;
     --grey: #2C2C2C;
     --light: #F5F5F5;
     --border: #DCDCDC;
@@ -225,9 +226,74 @@
 
   .actions-row { display: flex; gap: 10px; margin-top: 16px; }
   .actions-row .btn { flex: 1; }
+
+  /* SPLASH SCREEN */
+  #splash {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #1A3A6B;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  #splash.morphing {
+    bottom: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px;
+    gap: 16px;
+    transition: height 0.55s cubic-bezier(0.4,0,0.2,1),
+                padding 0.55s cubic-bezier(0.4,0,0.2,1);
+  }
+  #splashSvg {
+    transition: width 0.55s cubic-bezier(0.4,0,0.2,1);
+    flex-shrink: 0;
+  }
+  #splashTextBlock {
+    display: none;
+    flex-direction: column;
+    color: white;
+    transition: opacity 0.3s ease;
+  }
+  #splash.morphing #splashTextBlock {
+    display: flex;
+    opacity: 0;
+  }
+  #splash.morphing.text-in #splashTextBlock {
+    opacity: 1;
+  }
+  #splashTextBlock .spl-title { font-size: 22px; font-weight: 800; line-height: 1.2; }
+  #splashTextBlock .spl-sub { font-size: 13px; opacity: 0.85; margin-top: 4px; line-height: 1.4; }
 </style>
 </head>
 <body>
+
+
+<!-- SPLASH SCREEN -->
+<div id="splash">
+<svg id="splashSvg" viewBox="-20 0 185 245" width="240" style="display:block;max-width:70vw;">
+  <defs>
+    <clipPath id="sc1"><rect id="sr1" x="-20" y="197" width="80" height="0"/></clipPath>
+    <clipPath id="sc2"><rect id="sr2" x="-20" y="197" width="80" height="0"/></clipPath>
+    <clipPath id="sc3"><rect id="sr3" x="-20" y="197" width="80" height="0"/></clipPath>
+  </defs>
+  <rect x="10" y="1.5"  width="7" height="195.5" fill="#ffffff" clip-path="url(#sc1)"/>
+  <rect x="23" y="13.5" width="7" height="183.5" fill="#ffffff" clip-path="url(#sc2)"/>
+  <rect x="36" y="25.5" width="7" height="171.5" fill="#ffffff" clip-path="url(#sc3)"/>
+  <path id="su1" d="M 10 5 L 43 5 C 118 5 118 95 43 95"    fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <path id="su2" d="M 23 17 L 43 17 C 100 17 100 83 43 83"  fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <path id="su3" d="M 43 29 C 82 29 82 71 43 71"             fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <path id="sl1" d="M 43 95  C 133 95  133 193 43 193"       fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <path id="sl2" d="M 43 107 C 113 107 113 181 43 181"       fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <path id="sl3" d="M 43 119 C 92 119 92 169 43 169"         fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+  <text id="st1" x="72" y="218" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Arial Black,sans-serif" font-size="16" font-weight="900" fill="#ffffff" opacity="0">Barton Fabrications</text>
+  <text id="st2" x="72" y="236" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" font-size="11" font-weight="bold" fill="#ffffff" opacity="0" letter-spacing="2">Silo Inspection</text>
+</svg>
+<div id="splashTextBlock">
+  <div class="spl-title">Barton Fabrications</div>
+  <div class="spl-sub">Silo Inspection App</div>
+</div>
+</div>
+
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -236,10 +302,26 @@
 <!-- SCREEN: HOME -->
 <!-- ============================================================ -->
 <div class="screen active" id="screen-home">
-  <div class="home-hero">
-    <div class="home-logo">🏭</div>
-    <h2>Silo Inspector</h2>
-    <p>Barton Fabrications<br>PUWER Inspection Tool</p>
+  <div class="home-hero" style="padding:24px 20px;">
+    <div style="display:flex;align-items:center;gap:18px;">
+      <div style="flex-shrink:0;">
+        <svg viewBox="-20 0 185 245" width="64" style="display:block;">
+          <rect x="10" y="1.5"  width="7" height="195.5" fill="#ffffff"/>
+          <rect x="23" y="13.5" width="7" height="183.5" fill="#ffffff"/>
+          <rect x="36" y="25.5" width="7" height="171.5" fill="#ffffff"/>
+          <path d="M 10 5 L 43 5 C 118 5 118 95 43 95"    fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+          <path d="M 23 17 L 43 17 C 100 17 100 83 43 83"  fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+          <path d="M 43 29 C 82 29 82 71 43 71"             fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+          <path d="M 43 95  C 133 95  133 193 43 193"       fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+          <path d="M 43 107 C 113 107 113 181 43 181"       fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+          <path d="M 43 119 C 92 119 92 169 43 169"         fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="butt"/>
+        </svg>
+      </div>
+      <div style="text-align:left;">
+        <h2 style="margin-bottom:4px;">Barton Fabrications</h2>
+        <p>Silo Inspection App</p>
+      </div>
+    </div>
   </div>
   <div class="home-body">
     <h3>Start</h3>
@@ -285,17 +367,17 @@
 
     <div class="form-group">
       <label class="form-label">Client Name</label>
-      <input class="form-input" type="text" id="client-name" placeholder="e.g. Wavin" autocomplete="off">
+      <input class="form-input" type="text" id="client-name" placeholder="Client name" autocomplete="off">
     </div>
 
     <div class="form-group">
       <label class="form-label">Site Name / Location</label>
-      <input class="form-input" type="text" id="site-name" placeholder="e.g. Chippenham" autocomplete="off">
+      <input class="form-input" type="text" id="site-name" placeholder="Site name / location" autocomplete="off">
     </div>
 
     <div class="form-group">
       <label class="form-label">Inspector Name</label>
-      <input class="form-input" type="text" id="inspector-name" placeholder="e.g. Steven Dance" autocomplete="off" value="">
+      <input class="form-input" type="text" id="inspector-name" placeholder="Inspector name" autocomplete="off" value="">
     </div>
 
     <div class="form-group">
@@ -350,7 +432,7 @@
     <div id="silo-name-section">
       <div class="form-group">
         <label class="form-label">Silo Name / ID</label>
-        <input class="form-input" type="text" id="silo-name-input" placeholder="e.g. N1, Silo 1, North Silo">
+        <input class="form-input" type="text" id="silo-name-input" placeholder="Silo name / ID">
       </div>
       <button class="btn btn-primary" onclick="setSiloName()">Set Name & Add Issues →</button>
     </div>
@@ -444,6 +526,89 @@ document.addEventListener('DOMContentLoaded', () => {
   if (savedName) document.getElementById('inspector-name').value = savedName;
 
   renderSavedList();
+
+  // SVG splash animation + hero morph
+  (function(){
+    function ease(t,p){return 1-Math.pow(1-Math.min(Math.max(t,0),1),p||3);}
+    function animBar(id,h,delay){
+      var el=document.getElementById(id),dur=680,s=performance.now()+delay;
+      requestAnimationFrame(function tick(now){
+        var e=ease((now-s)/dur);
+        el.setAttribute('y',197-h*e);el.setAttribute('height',h*e);
+        if(now<s+dur)requestAnimationFrame(tick);
+      });
+    }
+    function animCurve(id,delay){
+      var el=document.getElementById(id),len=el.getTotalLength(),dur=600,s=performance.now()+delay;
+      el.style.strokeDasharray=len;el.style.strokeDashoffset=len;
+      requestAnimationFrame(function tick(now){
+        el.style.strokeDashoffset=len*(1-ease((now-s)/dur,2));
+        if(now<s+dur)requestAnimationFrame(tick);
+      });
+    }
+    function animFade(id,delay){
+      var el=document.getElementById(id),dur=500,s=performance.now()+delay;
+      requestAnimationFrame(function tick(now){
+        el.setAttribute('opacity',ease((now-s)/dur,2));
+        if(now<s+dur)requestAnimationFrame(tick);
+      });
+    }
+    animBar('sr1',195.5,0);animBar('sr2',183.5,140);animBar('sr3',171.5,280);
+    var cs=760;
+    animCurve('su1',cs);animCurve('su2',cs+110);animCurve('su3',cs+220);
+    animCurve('sl1',cs+80);animCurve('sl2',cs+190);animCurve('sl3',cs+300);
+    animFade('st1',2700);animFade('st2',2950);
+
+    // Morph splash into hero
+    setTimeout(function(){
+      var splash = document.getElementById('splash');
+      var svg = document.getElementById('splashSvg');
+      // Fade out the SVG text labels first
+      document.getElementById('st1').style.transition='opacity 0.2s';
+      document.getElementById('st2').style.transition='opacity 0.2s';
+      document.getElementById('st1').setAttribute('opacity',0);
+      document.getElementById('st2').setAttribute('opacity',0);
+
+      // Prepare home screen behind splash (rendered but invisible)
+      var homeScreen = document.getElementById('screen-home');
+      homeScreen.style.display='block';
+      homeScreen.style.visibility='hidden';
+
+      // Measure hero target height
+      var hero = homeScreen.querySelector('.home-hero');
+      var heroH = hero ? hero.getBoundingClientRect().height : 90;
+      homeScreen.style.visibility='';
+      homeScreen.style.opacity='0';
+      homeScreen.style.transition='opacity 0.35s ease 0.45s';
+
+      // Set initial height explicitly before transition
+      splash.style.height = window.innerHeight + 'px';
+
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          // Trigger morph
+          splash.classList.add('morphing');
+          splash.style.height = heroH + 'px';
+          svg.style.width = '64px';
+
+          // Fade in text block
+          setTimeout(function(){
+            splash.classList.add('text-in');
+          }, 300);
+
+          // Reveal home screen, hide splash hero area
+          setTimeout(function(){
+            homeScreen.style.opacity='1';
+            // After home is fully visible, remove splash
+            setTimeout(function(){
+              splash.style.display='none';
+              homeScreen.style.transition='';
+            }, 400);
+          }, 450);
+        });
+      });
+    }, 3600);
+  })();
 });
 
 // ============================================================
