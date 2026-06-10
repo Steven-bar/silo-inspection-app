@@ -404,7 +404,7 @@
   <div class="content">
     <div class="form-group">
       <label class="form-label">How many silos on this site?</label>
-      <input class="form-input" type="number" id="silo-count" min="1" max="50" placeholder="e.g. 10">
+      <input class="form-input" type="number" id="silo-count" min="1" max="15" placeholder="Max 15 per inspection">
     </div>
     <button class="btn btn-primary" onclick="goToSilos()">Start Inspection →</button>
     <button class="btn btn-ghost" onclick="showScreen('screen-site')">Back</button>
@@ -642,14 +642,14 @@ function handlePhoto(input, imgId, placeholderId, boxId, retakeId) {
     // Compress using canvas — iPhone photos can be 5-8MB, shrink to max 1200px
     const origImg = new Image();
     origImg.onload = () => {
-      const MAX = 1200;
+      const MAX = 800;
       let w = origImg.width, h = origImg.height;
       if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
       if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(origImg, 0, 0, w, h);
-      const compressed = canvas.toDataURL('image/jpeg', 0.75);
+      const compressed = canvas.toDataURL('image/jpeg', 0.55);
 
       const img = document.getElementById(imgId);
       img.src = compressed;
@@ -711,9 +711,18 @@ function renderSavedList() {
         <div class="ic-title">${d.clientName || 'Unnamed'} – ${d.siteName || 'No site'}</div>
         <div class="ic-sub">${d.date || 'No date'} · ${d.silos.length} silo(s) · ${total} issue(s)${majors > 0 ? ` · <span style="color:var(--major)">${majors} major</span>` : ''}</div>
       </div>
-      <div class="ic-arrow">›</div>
+      <button class="btn btn-danger btn-sm" style="flex-shrink:0;font-size:13px;padding:8px 12px;" onclick="event.stopPropagation();deleteInspection('${k}')">🗑</button>
     </div>`;
   }).join('');
+}
+
+function deleteInspection(key) {
+  const d = JSON.parse(localStorage.getItem(key));
+  const name = (d.clientName || 'Unnamed') + ' – ' + (d.siteName || 'No site');
+  if (!confirm('Delete "' + name + '"? Make sure you have exported the JSON first.')) return;
+  localStorage.removeItem(key);
+  renderSavedList();
+  toast('Inspection deleted');
 }
 
 function loadInspection(key) {
@@ -750,6 +759,7 @@ function goToSiloCount() {
 function goToSilos() {
   const count = parseInt(document.getElementById('silo-count').value);
   if (!count || count < 1) { toast('Enter number of silos'); return; }
+  if (count > 15) { toast('Max 15 silos — please split into two separate inspections'); return; }
 
   // Preserve existing silos if already started
   const existing = currentInspection.silos.length;
@@ -867,11 +877,15 @@ function addIssue() {
   };
 
   currentInspection.silos[currentSiloIndex].issues.push(issue);
-  saveInspection();
+  // Always update UI first, regardless of save success
   renderIssues();
-  renderSiloScreen(); // update pips
+  renderSiloScreen();
   resetIssueForm();
-  toast('Issue added ✓');
+  if (!saveInspection()) {
+    toast('⚠️ Storage full — export your data now!');
+  } else {
+    toast('Issue added ✓');
+  }
 }
 
 function deleteIssue(issueId) {
@@ -976,7 +990,12 @@ function jumpAndEdit(i) {
 // SAVE / EXPORT
 // ============================================================
 function saveInspection() {
-  localStorage.setItem('bf_inspection_' + currentInspection.id, JSON.stringify(currentInspection));
+  try {
+    localStorage.setItem('bf_inspection_' + currentInspection.id, JSON.stringify(currentInspection));
+    return true;
+  } catch(e) {
+    return false;
+  }
 }
 
 function exportJSON() {
