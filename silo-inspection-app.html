@@ -459,15 +459,9 @@
         </div>
 
         <div class="form-group" style="margin-bottom:12px">
-          <div class="photo-box" id="issue-photo-box">
-            <label for="issue-photo-input" class="photo-box-placeholder" id="issue-photo-placeholder">
-              <div class="icon">📷</div>
-              <p>Tap to take a photo (optional)</p>
-            </label>
-            <img id="issue-photo-img" style="display:none" />
-            <label for="issue-photo-input" class="photo-retake" id="issue-photo-retake" style="display:none">Retake</label>
-            <input type="file" accept="image/*" capture="environment" id="issue-photo-input" style="display:none" onchange="handlePhoto(this,'issue-photo-img','issue-photo-placeholder','issue-photo-box','issue-photo-retake')">
-          </div>
+          <div id="issue-photos-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;"></div>
+          <label for="issue-photo-input" class="btn btn-secondary btn-sm" style="cursor:pointer;text-align:center;display:block;">📷 Add Photo</label>
+          <input type="file" accept="image/*" capture="environment" id="issue-photo-input" style="display:none" onchange="handleIssuePhoto(this)">
         </div>
 
         <button class="btn btn-primary btn-sm" onclick="addIssue()">Add Issue</button>
@@ -498,7 +492,8 @@
   <div class="content">
     <div class="summary-header" id="summary-header"></div>
     <div id="summary-silos"></div>
-    <button class="btn btn-primary" onclick="exportJSON()">📤 Export Inspection Data</button>
+    <button class="btn btn-primary" onclick="generateReport(currentInspection)" id="gen-report-btn">📄 Generate Word Report</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="exportJSON()">📤 Export JSON Data</button>
     <button class="btn btn-secondary" style="margin-top:10px" onclick="showScreen('screen-silo')">Continue Inspecting</button>
     <button class="btn btn-ghost" style="margin-top:4px" onclick="goHome()">Home</button>
   </div>
@@ -511,7 +506,7 @@
 let currentInspection = null;
 let currentSiloIndex = 0;
 let currentSeverity = 'major';
-let currentIssuePhotoData = null;
+let currentIssuePhotos = [];
 
 // ============================================================
 // INIT
@@ -525,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedName = localStorage.getItem('bf_inspector_name');
   if (savedName) document.getElementById('inspector-name').value = savedName;
 
-  renderSavedList();
+  openDB(() => renderSavedList());
 
   // SVG splash animation + hero morph
   (function(){
@@ -642,14 +637,14 @@ function handlePhoto(input, imgId, placeholderId, boxId, retakeId) {
     // Compress using canvas — iPhone photos can be 5-8MB, shrink to max 1200px
     const origImg = new Image();
     origImg.onload = () => {
-      const MAX = 800;
+      const MAX = 1200;
       let w = origImg.width, h = origImg.height;
       if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
       if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(origImg, 0, 0, w, h);
-      const compressed = canvas.toDataURL('image/jpeg', 0.55);
+      const compressed = canvas.toDataURL('image/jpeg', 0.85);
 
       const img = document.getElementById(imgId);
       img.src = compressed;
@@ -657,9 +652,7 @@ function handlePhoto(input, imgId, placeholderId, boxId, retakeId) {
       document.getElementById(placeholderId).style.display = 'none';
       document.getElementById(boxId).classList.add('has-photo');
       document.getElementById(retakeId).style.display = 'block';
-      if (input.id === 'issue-photo-input') {
-        currentIssuePhotoData = compressed;
-      }
+
     };
     origImg.src = e.target.result;
   };
@@ -690,46 +683,50 @@ function startNew() {
 
 function renderSavedList() {
   const container = document.getElementById('saved-list');
-  const keys = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k.startsWith('bf_inspection_')) keys.push(k);
-  }
-  if (keys.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No saved inspections yet</p></div>';
-    return;
-  }
-  keys.sort().reverse();
-  container.innerHTML = keys.map(k => {
-    const d = JSON.parse(localStorage.getItem(k));
-    const majors = d.silos.reduce((n, s) => n + s.issues.filter(i => i.severity === 'major').length, 0);
-    const total = d.silos.reduce((n, s) => n + s.issues.length, 0);
-    return `
-    <div class="inspection-card" onclick="loadInspection('${k}')">
-      <div class="ic-icon">📋</div>
-      <div class="ic-body">
-        <div class="ic-title">${d.clientName || 'Unnamed'} – ${d.siteName || 'No site'}</div>
-        <div class="ic-sub">${d.date || 'No date'} · ${d.silos.length} silo(s) · ${total} issue(s)${majors > 0 ? ` · <span style="color:var(--major)">${majors} major</span>` : ''}</div>
-      </div>
-      <button class="btn btn-danger btn-sm" style="flex-shrink:0;font-size:13px;padding:8px 12px;" onclick="event.stopPropagation();deleteInspection('${k}')">🗑</button>
-    </div>`;
-  }).join('');
+  loadAllInspections(list => {
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No saved inspections yet</p></div>';
+      return;
+    }
+    list.sort((a, b) => b.id - a.id);
+    container.innerHTML = list.map(d => {
+      const majors = d.silos.reduce((n, s) => n + s.issues.filter(i => i.severity === 'major').length, 0);
+      const total = d.silos.reduce((n, s) => n + s.issues.length, 0);
+      return `
+      <div class="inspection-card" onclick="loadInspection(${d.id})">
+        <div class="ic-icon">📋</div>
+        <div class="ic-body">
+          <div class="ic-title">${d.clientName || 'Unnamed'} – ${d.siteName || 'No site'}</div>
+          <div class="ic-sub">${d.date || 'No date'} · ${d.silos.length} silo(s) · ${total} issue(s)${majors > 0 ? ` · <span style="color:var(--major)">${majors} major</span>` : ''}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" style="flex-shrink:0;font-size:13px;padding:8px 12px;" onclick="event.stopPropagation();deleteInspection(${d.id})">🗑</button>
+      </div>`;
+    }).join('');
+  });
 }
 
-function deleteInspection(key) {
-  const d = JSON.parse(localStorage.getItem(key));
-  const name = (d.clientName || 'Unnamed') + ' – ' + (d.siteName || 'No site');
-  if (!confirm('Delete "' + name + '"? Make sure you have exported the JSON first.')) return;
-  localStorage.removeItem(key);
-  renderSavedList();
-  toast('Inspection deleted');
+function deleteInspection(id) {
+  openDB(d => {
+    const req = d.transaction('inspections', 'readonly').objectStore('inspections').get(id);
+    req.onsuccess = () => {
+      const insp = req.result;
+      const name = (insp ? (insp.clientName || 'Unnamed') + ' – ' + (insp.siteName || 'No site') : 'this inspection');
+      if (!confirm('Delete "' + name + '"? Make sure you have exported the JSON first.')) return;
+      dbDeleteInspection(id, () => { renderSavedList(); toast('Inspection deleted'); });
+    };
+  });
 }
 
-function loadInspection(key) {
-  currentInspection = JSON.parse(localStorage.getItem(key));
-  currentSiloIndex = 0;
-  renderSiloScreen();
-  showScreen('screen-silo');
+function loadInspection(id) {
+  openDB(d => {
+    const req = d.transaction('inspections', 'readonly').objectStore('inspections').get(id);
+    req.onsuccess = () => {
+      currentInspection = req.result;
+      currentSiloIndex = 0;
+      renderSiloScreen();
+      showScreen('screen-silo');
+    };
+  });
 }
 
 // ============================================================
@@ -873,19 +870,15 @@ function addIssue() {
     id: Date.now(),
     severity: currentSeverity,
     description: desc,
-    photo: currentIssuePhotoData
+    photos: currentIssuePhotos.slice()
   };
 
   currentInspection.silos[currentSiloIndex].issues.push(issue);
-  // Always update UI first, regardless of save success
   renderIssues();
   renderSiloScreen();
   resetIssueForm();
-  if (!saveInspection()) {
-    toast('⚠️ Storage full — export your data now!');
-  } else {
-    toast('Issue added ✓');
-  }
+  saveInspection();
+  toast('Issue added ✓');
 }
 
 function deleteIssue(issueId) {
@@ -911,7 +904,7 @@ function renderIssues() {
         <span class="issue-badge badge-${issue.severity}">${issue.severity}</span>
         <button class="issue-delete" onclick="deleteIssue(${issue.id})">✕</button>
       </div>
-      ${issue.photo ? `<img class="issue-photo" src="${issue.photo}" alt="Issue photo">` : ''}
+      ${(()=>{const pl=(issue.photos&&issue.photos.length>0)?issue.photos:(issue.photo?[issue.photo]:[]);return pl.length>0?`<div style="display:grid;grid-template-columns:repeat(${Math.min(pl.length,3)},1fr);gap:4px;margin-top:8px">${pl.map(s=>`<img src="${s}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;">`).join('')}</div>`:'';})()}
     </div>
   `).join('');
 }
@@ -919,15 +912,51 @@ function renderIssues() {
 function resetIssueForm() {
   document.getElementById('issue-description').value = '';
   // Reset photo
-  currentIssuePhotoData = null;
-  const img = document.getElementById('issue-photo-img');
-  img.src = ''; img.style.display = 'none';
-  document.getElementById('issue-photo-placeholder').style.display = 'block';
-  document.getElementById('issue-photo-box').classList.remove('has-photo');
-  document.getElementById('issue-photo-retake').style.display = 'none';
+  currentIssuePhotos = [];
+  renderIssuePhotoGrid();
   document.getElementById('issue-photo-input').value = '';
   // Keep severity
   selectSeverity(currentSeverity);
+}
+
+function handleIssuePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const origImg = new Image();
+    origImg.onload = () => {
+      const MAX = 1200;
+      let w = origImg.width, h = origImg.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(origImg, 0, 0, w, h);
+      currentIssuePhotos.push(canvas.toDataURL('image/jpeg', 0.85));
+      renderIssuePhotoGrid();
+      input.value = '';
+    };
+    origImg.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderIssuePhotoGrid() {
+  const grid = document.getElementById('issue-photos-grid');
+  if (!grid) return;
+  if (currentIssuePhotos.length === 0) { grid.style.display = 'none'; grid.innerHTML = ''; return; }
+  grid.style.display = 'grid';
+  grid.innerHTML = currentIssuePhotos.map((src, i) => `
+    <div style="position:relative;">
+      <img src="${src}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;">
+      <button onclick="removeIssuePhoto(${i})" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:22px;padding:0;">✕</button>
+    </div>`).join('');
+}
+
+function removeIssuePhoto(i) {
+  currentIssuePhotos.splice(i, 1);
+  renderIssuePhotoGrid();
 }
 
 // ============================================================
@@ -987,17 +1016,48 @@ function jumpAndEdit(i) {
 }
 
 // ============================================================
-// SAVE / EXPORT
+// INDEXEDDB STORAGE
 // ============================================================
-function saveInspection() {
-  try {
-    localStorage.setItem('bf_inspection_' + currentInspection.id, JSON.stringify(currentInspection));
-    return true;
-  } catch(e) {
-    return false;
-  }
+let _db = null;
+function openDB(cb) {
+  if (_db) { cb(_db); return; }
+  const req = indexedDB.open('bf_silo_app', 1);
+  req.onupgradeneeded = e => {
+    const d = e.target.result;
+    if (!d.objectStoreNames.contains('inspections')) {
+      d.createObjectStore('inspections', { keyPath: 'id' });
+    }
+  };
+  req.onsuccess = e => { _db = e.target.result; cb(_db); };
+  req.onerror = () => console.error('IndexedDB failed to open');
 }
 
+function saveInspection(cb) {
+  openDB(d => {
+    const tx = d.transaction('inspections', 'readwrite');
+    tx.objectStore('inspections').put(currentInspection);
+    tx.oncomplete = () => { if (cb) cb(); };
+  });
+}
+
+function loadAllInspections(cb) {
+  openDB(d => {
+    const req = d.transaction('inspections', 'readonly').objectStore('inspections').getAll();
+    req.onsuccess = () => cb(req.result || []);
+  });
+}
+
+function dbDeleteInspection(id, cb) {
+  openDB(d => {
+    const tx = d.transaction('inspections', 'readwrite');
+    tx.objectStore('inspections').delete(id);
+    tx.oncomplete = () => { if (cb) cb(); };
+  });
+}
+
+// ============================================================
+// SAVE / EXPORT
+// ============================================================
 function exportJSON() {
   const data = JSON.stringify(currentInspection, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
@@ -1023,6 +1083,286 @@ function toast(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2200);
 }
+
+// ============================================================
+// BROWSER REPORT GENERATOR
+// ============================================================
+const LOGO_B64 = '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';
+
+function b64toU8(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+function decodePhoto(url){if(!url)return null;const m=url.match(/^data:image\/(png|jpeg|jpg|gif|bmp|webp);base64,(.+)$/);if(!m)return null;let type=m[1];if(type==='jpg')type='jpeg';return{type,buf:b64toU8(m[2])};}
+function getPhotos(issue){return(issue.photos&&issue.photos.length>0)?issue.photos:(issue.photo?[issue.photo]:[]);}
+function nextYear(d){const dt=new Date(d);dt.setFullYear(dt.getFullYear()+1);return dt.toISOString().split('T')[0];}
+
+async function generateReport(insp) {
+  if (!insp) { toast('No inspection loaded'); return; }
+  const btn = document.getElementById('gen-report-btn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ Generating…'; btn.disabled = true; }
+  try {
+    const docx = await import('https://esm.sh/docx@9.7.1');
+    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,ImageRun,
+      Header,Footer,AlignmentType,HeadingLevel,BorderStyle,WidthType,ShadingType,
+      VerticalAlign,PageNumber,PageBreak,LevelFormat,TableOfContents} = docx;
+
+    const ORANGE='E8590C',DARK='1F1F1F',MID='444444',WHITE='FFFFFF';
+    const BLUE='1A3A6B',BLUE_MID='2563A8';
+    const MAJOR_BG='FFEBEE',MAJOR_FG='B71C1C',MINOR_BG='FFF8E1',MINOR_FG='E65100';
+    const MON_BG='E8F5E9',MON_FG='1B5E20',TBL_HEAD='2C2C2C',TBL_ALT='F9F9F9';
+    const PAGE_W=11906,PAGE_H=16838,MARGIN=1134,CW=PAGE_W-MARGIN*2;
+
+    const cb={style:BorderStyle.SINGLE,size:1,color:'CCCCCC'};
+    const ab={top:cb,bottom:cb,left:cb,right:cb};
+    const sh=(fill)=>({fill,type:ShadingType.CLEAR,color:'auto'});
+    const cm={top:80,bottom:80,left:130,right:130};
+    const cmL={top:100,bottom:100,left:160,right:160};
+
+    function t(text,opts={}){return new TextRun({text:String(text),font:'Arial',size:20,color:DARK,...opts});}
+    function tb(text,opts={}){return t(text,{bold:true,...opts});}
+    function p(children,opts={}){if(!Array.isArray(children))children=[children];return new Paragraph({children,spacing:{before:0,after:80},...opts});}
+    function ph(text){return new Paragraph({text,heading:HeadingLevel.HEADING_1,spacing:{before:0,after:120}});}
+    function sp(n=1){return new Paragraph({children:[t('',{size:n*4})],spacing:{before:0,after:0}});}
+    function tcH(text,width,bg=TBL_HEAD){return new TableCell({borders:ab,shading:sh(bg),margins:cmL,verticalAlign:VerticalAlign.CENTER,width:{size:width,type:WidthType.DXA},children:[p([tb(text,{color:WHITE,size:18})])]});}
+    function sevLabel(s){return s==='major'?'MAJOR':s==='minor'?'MINOR':'MONITOR';}
+    function sevBg(s){return s==='major'?MAJOR_BG:s==='minor'?MINOR_BG:MON_BG;}
+    function sevFg(s){return s==='major'?MAJOR_FG:s==='minor'?MINOR_FG:MON_FG;}
+    function condOf(silo){return silo.issues.some(i=>i.severity==='major')?'FAIL':silo.issues.length>0?'ADVISORY':'PASS';}
+    function condCol(c){return c==='FAIL'?MAJOR_FG:c==='ADVISORY'?MINOR_FG:MON_FG;}
+    function imgRun(buf,type,w,h){return new ImageRun({data:buf,type,transformation:{width:w||360,height:h||270},altText:{title:'photo',description:'photo',name:'photo'}});}
+
+    const allIssues=insp.silos.flatMap(s=>s.issues);
+    const nMaj=allIssues.filter(i=>i.severity==='major').length;
+    const nMin=allIssues.filter(i=>i.severity==='minor').length;
+    const nMon=allIssues.filter(i=>i.severity==='monitor').length;
+    const nFail=insp.silos.filter(s=>condOf(s)==='FAIL').length;
+    const nPass=insp.silos.filter(s=>condOf(s)==='PASS').length;
+
+    const numbering={config:[{reference:'bullets',levels:[{level:0,format:LevelFormat.BULLET,text:'•',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:560,hanging:280}}}}]}]};
+    const children=[];
+
+    // Cover
+    const logoU8=b64toU8(LOGO_B64);
+    children.push(new Paragraph({children:[new ImageRun({data:logoU8,type:'png',transformation:{width:120,height:168},altText:{title:'Logo',description:'Logo',name:'logo'}})],spacing:{before:0,after:200}}));
+    children.push(
+      new Paragraph({children:[tb('SILO INSPECTION REPORT',{size:52,color:BLUE})],spacing:{before:0,after:120}}),
+      new Paragraph({children:[tb(insp.clientName.toUpperCase(),{size:36,color:DARK})],spacing:{before:0,after:160}})
+    );
+    const iw=[2600,CW-2600];
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:iw,
+      rows:[['Client',insp.clientName],['Site',insp.siteName],['Inspection Date',insp.date],
+            ['Inspector',insp.inspectorName],['Total Silos',String(insp.silos.length)],
+            ['Next Inspection Due',nextYear(insp.date)]
+      ].map(([l,v],i)=>new TableRow({children:[
+        new TableCell({borders:ab,shading:sh(i%2===0?'F0F0F0':'F8F8F8'),margins:cmL,width:{size:iw[0],type:WidthType.DXA},children:[p([tb(l,{size:19})])]}),
+        new TableCell({borders:ab,shading:sh(i%2===0?WHITE:'FAFAFA'),margins:cmL,width:{size:iw[1],type:WidthType.DXA},children:[p([t(v,{size:19})])]}),
+      ]}))}),sp(1));
+
+    const sitePhoto=decodePhoto(insp.sitePhoto);
+    if(sitePhoto){children.push(new Paragraph({children:[imgRun(sitePhoto.buf,sitePhoto.type,440,200)],alignment:AlignmentType.CENTER,spacing:{before:0,after:120}}));}
+
+    const hw=Math.floor(CW/2);
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[hw,hw],rows:[
+      new TableRow({children:[tcH('OPERATIVE(S)',hw),tcH('ROLE',hw)]}),
+      new TableRow({children:[
+        new TableCell({borders:ab,margins:cmL,width:{size:hw,type:WidthType.DXA},children:[p([t(insp.inspectorName)])]}),
+        new TableCell({borders:ab,margins:cmL,width:{size:hw,type:WidthType.DXA},children:[p([t('Silo Inspector')])]}),
+      ]}),
+    ]}));
+    const revW=[1600,2000,2000,1400,CW-1600-2000-2000-1400];
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:revW,rows:[
+      new TableRow({children:[tcH('Author',revW[0]),tcH('Approved',revW[1]),tcH('Date Issued',revW[2]),tcH('Revision',revW[3]),tcH('Purpose',revW[4])]}),
+      new TableRow({children:[
+        new TableCell({borders:ab,margins:cmL,width:{size:revW[0],type:WidthType.DXA},children:[p([t(insp.inspectorName.split(' ').map(w=>w[0]).join(''))])]}),
+        new TableCell({borders:ab,margins:cmL,width:{size:revW[1],type:WidthType.DXA},children:[p([t('')])]}),
+        new TableCell({borders:ab,margins:cmL,width:{size:revW[2],type:WidthType.DXA},children:[p([t(insp.date)])]}),
+        new TableCell({borders:ab,margins:cmL,width:{size:revW[3],type:WidthType.DXA},children:[p([t('01')])]}),
+        new TableCell({borders:ab,margins:cmL,width:{size:revW[4],type:WidthType.DXA},children:[p([t('Issue')])]}),
+      ]}),
+    ]}));
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[
+      new TableRow({children:[new TableCell({borders:ab,shading:sh('EEF3FA'),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[
+        p([tb('NEXT INSPECTION DUE: ',{color:BLUE}),tb(nextYear(insp.date),{size:22})]),
+      ]})]}),
+    ]}));
+    children.push(new Paragraph({children:[new PageBreak()]}));
+
+    // TOC
+    children.push(p([tb('Contents',{size:28})],{spacing:{before:0,after:200}}),
+      new TableOfContents('Contents',{hyperlink:true,headingStyleRange:'1-1'}),
+      new Paragraph({children:[new PageBreak()]}));
+
+    // Introduction
+    children.push(ph('INTRODUCTION'));
+    children.push(p([t(insp.clientName+' has contracted Barton Fabrications to conduct an inspection of the '+insp.silos.length+' silo(s) at the site in '+insp.siteName+'.')]));
+    children.push(sp(2));
+    children.push(p([t('The purpose of silo inspections is to ensure PUWER compliance and identify issues well ahead of them becoming costly. A structured programme of annual inspections allows us to:')]));
+    children.push(sp(2));
+    ['Identify minor concerns before they escalate','Control long-term maintenance costs','Reduce the cost of ownership','Provide assurance of regulatory compliance'].forEach(item=>
+      children.push(new Paragraph({numbering:{reference:'bullets',level:0},children:[t(item)],spacing:{before:0,after:60}})));
+    children.push(sp(2));
+    children.push(p([t('We have surveyed and evaluated the condition of all visible and accessible areas within the scope of this inspection service. Areas that were not visible will be excluded from this report.')]));
+    children.push(new Paragraph({children:[new PageBreak()]}));
+
+    // Overview
+    children.push(ph('INSPECTION OVERVIEW'));
+    children.push(p([t('This section contains high-level information that has been used to determine:')]));
+    children.push(sp(2));
+    ['The structural integrity of the silo(s) as much as reasonably possible','The regulatory conformance status of the silo(s)','The safety and suitability of the silo(s)','Highlight minor and major observations','Highlight recommended remedial works','Make recommendations on preventative maintenance'].forEach(item=>
+      children.push(new Paragraph({numbering:{reference:'bullets',level:0},children:[t(item)],spacing:{before:0,after:60}})));
+    children.push(sp(4));
+    const stW=Math.floor(CW/4),stW4=CW-stW*3;
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[stW,stW,stW,stW4],rows:[
+      new TableRow({children:[
+        new TableCell({borders:ab,shading:sh('F5F5F5'),margins:cmL,width:{size:stW,type:WidthType.DXA},children:[p([tb(String(insp.silos.length),{size:40,color:BLUE})],{alignment:AlignmentType.CENTER}),p([tb('SILOS',{size:16,color:'777777'})],{alignment:AlignmentType.CENTER})]}),
+        new TableCell({borders:ab,shading:sh(MAJOR_BG),margins:cmL,width:{size:stW,type:WidthType.DXA},children:[p([tb(String(nMaj),{size:40,color:MAJOR_FG})],{alignment:AlignmentType.CENTER}),p([tb('MAJOR',{size:16,color:MAJOR_FG})],{alignment:AlignmentType.CENTER})]}),
+        new TableCell({borders:ab,shading:sh(MINOR_BG),margins:cmL,width:{size:stW,type:WidthType.DXA},children:[p([tb(String(nMin),{size:40,color:MINOR_FG})],{alignment:AlignmentType.CENTER}),p([tb('MINOR',{size:16,color:MINOR_FG})],{alignment:AlignmentType.CENTER})]}),
+        new TableCell({borders:ab,shading:sh(MON_BG),margins:cmL,width:{size:stW4,type:WidthType.DXA},children:[p([tb(String(nMon),{size:40,color:MON_FG})],{alignment:AlignmentType.CENTER}),p([tb('MONITOR',{size:16,color:MON_FG})],{alignment:AlignmentType.CENTER})]}),
+      ]}),
+    ]}),sp(1));
+    children.push(
+      p([tb('Major Observations: ',{color:MAJOR_FG}),t('Observations classified as major should be addressed without delay. These present a significant risk of catastrophic failure. Continued operation should be approached with the highest degree of caution until remedial works are completed.')]),
+      sp(2),
+      p([tb('Minor Observations: ',{color:MINOR_FG}),t('Observations classified as minor should be resolved in a timely manner to prevent deterioration that increases both risk and repair costs over time.')]),
+      sp(2),
+      p([tb('Monitor: ',{color:MON_FG}),t('Items to monitor at the next scheduled inspection. No immediate action required, but deterioration should be tracked.')]),
+      new Paragraph({children:[new PageBreak()]})
+    );
+
+    // Standards
+    children.push(ph('STANDARDS'));
+    children.push(p([t('The following standards, guidance and regulations are used to inform our assessments and recommendations:')]));
+    children.push(sp(2));
+    ['PROVISION AND USE OF WORK EQUIPMENT REGULATIONS 1998 (PUWER)','EN 1999-1-1 EUROCODE 9: DESIGN OF ALUMINIUM STRUCTURES','EN 1993-1-11 EUROCODE 3 - DESIGN OF STEEL STRUCTURES','BS EN ISO 14122-2 SAFETY OF MACHINERY - WORKING PLATFORMS AND WALKWAYS','BS EN ISO 14122-3 SAFETY OF MACHINERY - STAIRS, STEPLADDERS AND GUARD-RAILS','BS EN ISO 14122-4 SAFETY OF MACHINERY - FIXED LADDERS','BS EN 1090 STEEL STRUCTURES AND ALUMINIUM STRUCTURES','ATEX DIRECTIVE 2014/34/EU - EQUIPMENT','ATEX DIRECTIVE 1999/92/EC - WORKPLACE','DANGEROUS SUBSTANCES AND EXPLOSIVE ATMOSPHERE REGULATIONS 2002 (DSEAR)','BS EN 14460 EXPLOSION RESISTANT EQUIPMENT','EN 14491 DUST EXPLOSION VENTING PROTECTIVE SYSTEMS'].forEach(s=>
+      children.push(new Paragraph({numbering:{reference:'bullets',level:0},children:[t(s,{size:19})],spacing:{before:0,after:60}})));
+    children.push(new Paragraph({children:[new PageBreak()]}));
+
+    // Per-silo
+    const obsCols=[Math.floor(CW*0.62),Math.floor(CW*0.17),CW-Math.floor(CW*0.62)-Math.floor(CW*0.17)];
+    const appendixPhotos=[];
+    let figCount=1;
+    insp.silos.forEach((silo,idx)=>{
+      const name=silo.name||('Silo '+(idx+1));
+      const cond=condOf(silo);
+      const cc=condCol(cond);
+      children.push(new Paragraph({text:name.toUpperCase(),heading:HeadingLevel.HEADING_1,spacing:{before:0,after:80}}));
+      children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[
+        new TableRow({children:[new TableCell({borders:ab,shading:sh('F0F0F0'),margins:cmL,width:{size:CW,type:WidthType.DXA},
+          children:[p([tb('SILO INFORMATION: ',{color:BLUE}),t(silo.info||'Site silo - see inspection notes below')])]})]}),
+      ]}),sp(2));
+      if(silo.issues.length===0){
+        children.push(p([t('No defects or observations identified during this inspection.',{color:MON_FG})]));
+      } else {
+        const obsRows=silo.issues.map((issue,iIdx)=>{
+          const bg=iIdx%2===0?WHITE:TBL_ALT;
+          const photoList=getPhotos(issue);
+          let refCells=[p([t('-',{color:'999999'})])];
+          if(photoList.length>0){
+            const refs=[];
+            photoList.forEach(photoUrl=>{
+              const decoded=decodePhoto(photoUrl);
+              if(decoded){
+                const fig='Figure '+figCount;
+                appendixPhotos.push({num:figCount,caption:name+': '+issue.description,buf:decoded.buf,type:decoded.type});
+                refs.push(fig);
+                figCount++;
+              }
+            });
+            if(refs.length>0) refCells=[p([t(refs.join(', '),{size:18,color:MID})])];
+          }
+          return new TableRow({children:[
+            new TableCell({borders:ab,shading:sh(bg),margins:cmL,width:{size:obsCols[0],type:WidthType.DXA},children:[p([t(issue.description)])]}),
+            new TableCell({borders:ab,shading:sh(sevBg(issue.severity)),margins:cm,verticalAlign:VerticalAlign.CENTER,width:{size:obsCols[1],type:WidthType.DXA},children:[p([tb(sevLabel(issue.severity),{size:17,color:sevFg(issue.severity)})],{alignment:AlignmentType.CENTER})]}),
+            new TableCell({borders:ab,shading:sh(bg),margins:cm,width:{size:obsCols[2],type:WidthType.DXA},children:refCells}),
+          ]});
+        });
+        children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:obsCols,rows:[
+          new TableRow({tableHeader:true,children:[tcH('OBSERVATION',obsCols[0]),tcH('MAJOR/MINOR',obsCols[1]),tcH('REFERENCE (IF APPLICABLE)',obsCols[2])]}),
+          ...obsRows
+        ]}),sp(2));
+      }
+      const note=silo.notes||(cond==='FAIL'?'One or more major observations identified. Immediate action required. Continued operation should be approached with the highest degree of caution.':cond==='ADVISORY'?'Minor observations identified. These should be addressed in a timely manner to prevent further deterioration.':'Silo is in satisfactory condition. Continue routine monitoring and annual inspection programme.');
+      children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[
+        new TableRow({children:[new TableCell({borders:ab,shading:sh('FAFAFA'),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([tb('NOTES: ',{color:MID}),t(note)])]})]}) ,
+        new TableRow({children:[new TableCell({borders:ab,shading:sh(cond==='FAIL'?MAJOR_BG:cond==='ADVISORY'?MINOR_BG:MON_BG),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([tb('CONDITION: ',{color:MID}),tb(cond,{color:cc,size:24})])]})]}),
+      ]}));
+      if(idx<insp.silos.length-1) children.push(new Paragraph({children:[new PageBreak()]}));
+      else children.push(sp(6));
+    });
+
+    // Summary
+    children.push(new Paragraph({children:[new PageBreak()]}),ph('SUMMARY'));
+    insp.silos.forEach(silo=>{
+      const c=condOf(silo),cc=condCol(c);
+      const maj=silo.issues.filter(i=>i.severity==='major').length;
+      const min=silo.issues.filter(i=>i.severity==='minor').length+silo.issues.filter(i=>i.severity==='monitor').length;
+      const note=c==='FAIL'?silo.name+' has '+maj+' major observation(s) requiring immediate attention.':c==='ADVISORY'?silo.name+' is operable with '+min+' observation(s) to address in the short term.':silo.name+' is in satisfactory condition with no observations.';
+      children.push(p([tb(silo.name+': ',{color:cc}),t(note)]));
+    });
+    children.push(sp(2),p([t('Total silos inspected: '+insp.silos.length+'. FAIL: '+nFail+'. ADVISORY: '+(insp.silos.length-nFail-nPass)+'. PASS: '+nPass+'.')]),new Paragraph({children:[new PageBreak()]}));
+
+    // Recommended Actions
+    children.push(ph('RECOMMENDED ACTIONS'));
+    children.push(p([t('The following table summarises all recommended actions from this inspection, categorised by priority.')]));
+    children.push(sp(2));
+    const actions=[];
+    insp.silos.forEach(silo=>{
+      silo.issues.forEach(issue=>{
+        actions.push({silo:silo.name,action:issue.description,priority:issue.severity==='major'?'Immediate':'Short-Term',pFg:issue.severity==='major'?MAJOR_FG:MINOR_FG,pBg:issue.severity==='major'?MAJOR_BG:MINOR_BG,cond:condOf(silo)});
+      });
+    });
+    actions.push({silo:'All Silos',action:'Implement annual PUWER inspection programme. Schedule next inspection: '+nextYear(insp.date)+'.',priority:'Ongoing',pFg:MON_FG,pBg:MON_BG,cond:''});
+    const aW=[1800,0,1700,1800]; aW[1]=CW-aW[0]-aW[2]-aW[3];
+    children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:aW,rows:[
+      new TableRow({tableHeader:true,children:[tcH('SILO',aW[0]),tcH('RECOMMENDED ACTION',aW[1]),tcH('PRIORITY',aW[2]),tcH('CONDITION',aW[3])]}),
+      ...actions.map((a,i)=>new TableRow({children:[
+        new TableCell({borders:ab,shading:sh(i%2===0?WHITE:TBL_ALT),margins:cmL,width:{size:aW[0],type:WidthType.DXA},children:[p([tb(a.silo,{size:19})])]}),
+        new TableCell({borders:ab,shading:sh(i%2===0?WHITE:TBL_ALT),margins:cmL,width:{size:aW[1],type:WidthType.DXA},children:[p([t(a.action,{size:19})])]}),
+        new TableCell({borders:ab,shading:sh(a.pBg),margins:cm,width:{size:aW[2],type:WidthType.DXA},children:[p([tb(a.priority,{size:17,color:a.pFg})],{alignment:AlignmentType.CENTER})]}),
+        new TableCell({borders:ab,shading:sh(a.cond==='FAIL'?MAJOR_BG:a.cond==='PASS'?MON_BG:a.cond==='ADVISORY'?MINOR_BG:'F5F5F5'),margins:cm,width:{size:aW[3],type:WidthType.DXA},children:[p([tb(a.cond||'-',{size:17,color:condCol(a.cond||'PASS')})],{alignment:AlignmentType.CENTER})]}),
+      ]})),
+    ]}),sp(6));
+
+    // Appendix
+    children.push(new Paragraph({children:[new PageBreak()]}),ph('APPENDIX - PHOTOGRAPHS'));
+    if(appendixPhotos.length===0){
+      children.push(p([t('Photographs taken during the inspection via the Silo Inspector app will appear here automatically.')]));
+    } else {
+      appendixPhotos.forEach(({num,caption,buf,type})=>{
+        children.push(new Paragraph({children:[imgRun(buf,type)],spacing:{before:100,after:80}}),
+          p([tb('Figure '+num+' ',{color:BLUE}),t('- '+caption,{color:MID,size:18})]),sp(4));
+      });
+    }
+
+    const doc=new Document({
+      numbering,
+      styles:{default:{
+        document:{run:{font:'Arial',size:20,color:DARK}},
+        heading1:{run:{font:'Arial',size:26,bold:true,color:DARK},paragraph:{spacing:{before:360,after:160},outlineLevel:0,border:{bottom:{style:BorderStyle.SINGLE,size:6,color:BLUE,space:2}}}},
+      }},
+      sections:[{
+        properties:{page:{size:{width:PAGE_W,height:PAGE_H},margin:{top:MARGIN,right:MARGIN,bottom:MARGIN,left:MARGIN}}},
+        headers:{default:new Header({children:[new Paragraph({children:[tb('BARTON FABRICATIONS',{size:16,color:BLUE}),t('   |   Silo Inspection Report - '+insp.clientName+', '+insp.siteName+'   |   '+insp.date,{size:16,color:'999999'})],border:{bottom:{style:BorderStyle.SINGLE,size:4,color:'DDDDDD',space:1}},spacing:{before:0,after:80}})]})},
+        footers:{default:new Footer({children:[new Paragraph({children:[t('Barton Fabrications Ltd  |  PUWER Silo Inspection  |  Page ',{size:16,color:'AAAAAA'}),new TextRun({children:[PageNumber.CURRENT],size:16,color:'AAAAAA',font:'Arial'}),t(' of ',{size:16,color:'AAAAAA'}),new TextRun({children:[PageNumber.TOTAL_PAGES],size:16,color:'AAAAAA',font:'Arial'})],border:{top:{style:BorderStyle.SINGLE,size:4,color:'DDDDDD',space:1}},spacing:{before:80,after:0}})]})},
+        children,
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const safeName=(insp.clientName||'inspection').replace(/\s+/g,'_');
+    const filename='Silo_Inspection_Report_'+safeName+'_'+insp.date+'.docx';
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+    toast('Report downloaded ✓');
+  } catch(err) {
+    console.error(err);
+    toast('Error generating report — check console');
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
 </script>
 </body>
 </html>
