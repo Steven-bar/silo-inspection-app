@@ -319,7 +319,7 @@
       </div>
       <div style="text-align:left;">
         <h2 style="margin-bottom:4px;">Barton Fabrications</h2>
-        <p>Silo Inspection App</p>
+        <p>Silo Inspection App <span style="font-size:11px;color:#aaa;margin-left:4px;">v2.0</span></p>
       </div>
     </div>
   </div>
@@ -440,6 +440,35 @@
     <!-- Issues section (shown after name is set) -->
     <div id="silo-issues-section" style="display:none">
       <div class="silo-name-tag" id="current-silo-tag"></div>
+
+      <!-- Silo Info -->
+      <div class="add-issue-panel" style="margin-bottom:16px">
+        <h4>📋 Silo Info</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label class="form-label" style="font-size:11px">HEIGHT (mm)</label>
+            <input class="form-input" type="number" id="silo-info-height" placeholder="e.g. 8500" oninput="saveSiloInfo()" style="padding:10px 12px;font-size:15px;">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px">DIAMETER (mm)</label>
+            <input class="form-input" type="number" id="silo-info-diameter" placeholder="e.g. 3000" oninput="saveSiloInfo()" style="padding:10px 12px;font-size:15px;">
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:11px">MATERIAL STORED</label>
+          <input class="form-input" type="text" id="silo-info-material" placeholder="e.g. Wheat flour" oninput="saveSiloInfo()" style="padding:10px 12px;font-size:15px;">
+        </div>
+        <label class="form-label" style="font-size:11px">DATA PLATE PHOTO</label>
+        <div class="photo-box" id="silo-dataplate-box" style="min-height:90px;">
+          <label for="silo-dataplate-input" class="photo-box-placeholder" id="silo-dataplate-placeholder">
+            <div class="icon" style="font-size:28px;">📷</div>
+            <p>Tap to photo data plate</p>
+          </label>
+          <img id="silo-dataplate-img" style="display:none;width:100%;height:180px;object-fit:cover;border-radius:12px;" />
+          <label for="silo-dataplate-input" class="photo-retake" id="silo-dataplate-retake" style="display:none">Retake</label>
+          <input type="file" accept="image/*" capture="environment" id="silo-dataplate-input" style="display:none" onchange="handleDataPlatePhoto(this)">
+        </div>
+      </div>
 
       <!-- Existing issues -->
       <div id="issues-list"></div>
@@ -762,7 +791,7 @@ function goToSilos() {
   const existing = currentInspection.silos.length;
   if (count > existing) {
     for (let i = existing; i < count; i++) {
-      currentInspection.silos.push({ name: '', issues: [] });
+      currentInspection.silos.push({ name: '', issues: [], height: '', diameter: '', materialStored: '', dataPlatePhoto: null });
     }
   } else if (count < existing) {
     if (!confirm(`Reduce to ${count} silos? Extra silo data will be removed.`)) return;
@@ -796,7 +825,7 @@ function renderSiloScreen() {
     if (i === currentSiloIndex) cls = 'active';
     else if (hasMajor) cls = 'has-major';
     else if (isDone) cls = 'done';
-    return `<div class="silo-pip ${cls}" onclick="jumpToSilo(${i})">${s.name || i + 1}</div>`;
+    return `<div class="silo-pip ${cls}" onclick="jumpToSilo(${i})" ontouchstart="startLongPress(${i},event)" ontouchend="cancelLongPress()" ontouchmove="cancelLongPress()" onmousedown="startLongPress(${i},event)" onmouseup="cancelLongPress()" onmouseleave="cancelLongPress()">${s.name || i + 1}</div>`;
   }).join('');
 
   // Name vs issues section
@@ -808,6 +837,20 @@ function renderSiloScreen() {
     document.getElementById('silo-name-section').style.display = 'none';
     document.getElementById('silo-issues-section').style.display = 'block';
     document.getElementById('current-silo-tag').textContent = silo.name;
+    document.getElementById('silo-info-height').value = silo.height || '';
+    document.getElementById('silo-info-diameter').value = silo.diameter || '';
+    document.getElementById('silo-info-material').value = silo.materialStored || '';
+    const dpImg = document.getElementById('silo-dataplate-img');
+    const dpPh  = document.getElementById('silo-dataplate-placeholder');
+    const dpBox = document.getElementById('silo-dataplate-box');
+    const dpRet = document.getElementById('silo-dataplate-retake');
+    if (silo.dataPlatePhoto) {
+      dpImg.src = silo.dataPlatePhoto; dpImg.style.display = 'block';
+      dpPh.style.display = 'none'; dpBox.classList.add('has-photo'); dpRet.style.display = 'block';
+    } else {
+      dpImg.style.display = 'none'; dpImg.src = '';
+      dpPh.style.display = ''; dpBox.classList.remove('has-photo'); dpRet.style.display = 'none';
+    }
     renderIssues();
   }
 
@@ -818,6 +861,43 @@ function renderSiloScreen() {
 
   // Reset issue form
   resetIssueForm();
+}
+
+function saveSiloInfo() {
+  const silo = currentInspection.silos[currentSiloIndex];
+  silo.height = document.getElementById('silo-info-height').value;
+  silo.diameter = document.getElementById('silo-info-diameter').value;
+  silo.materialStored = document.getElementById('silo-info-material').value;
+  saveInspection();
+}
+
+function handleDataPlatePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const origImg = new Image();
+    origImg.onload = () => {
+      const MAX = 1200;
+      let w = origImg.width, h = origImg.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(origImg, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.85);
+      currentInspection.silos[currentSiloIndex].dataPlatePhoto = compressed;
+      const dpImg = document.getElementById('silo-dataplate-img');
+      dpImg.src = compressed; dpImg.style.display = 'block';
+      document.getElementById('silo-dataplate-placeholder').style.display = 'none';
+      document.getElementById('silo-dataplate-box').classList.add('has-photo');
+      document.getElementById('silo-dataplate-retake').style.display = 'block';
+      saveInspection();
+      toast('Data plate photo saved ✓');
+    };
+    origImg.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function setSiloName() {
@@ -831,6 +911,28 @@ function setSiloName() {
 function jumpToSilo(i) {
   currentSiloIndex = i;
   renderSiloScreen();
+}
+
+// Long-press to rename silo pip
+let _lpTimer = null;
+function startLongPress(i, e) {
+  _lpTimer = setTimeout(() => {
+    _lpTimer = null;
+    renameSilo(i);
+  }, 600);
+}
+function cancelLongPress() {
+  if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+}
+function renameSilo(i) {
+  const current = currentInspection.silos[i].name || '';
+  const name = prompt('Rename silo:', current);
+  if (name !== null && name.trim()) {
+    currentInspection.silos[i].name = name.trim();
+    saveInspection();
+    renderSiloScreen();
+    toast('Silo renamed ✓');
+  }
 }
 
 function prevSilo() {
@@ -898,7 +1000,7 @@ function renderIssues() {
     return;
   }
   container.innerHTML = issues.map(issue => `
-    <div class="issue-card ${issue.severity}">
+    <div class="issue-card ${issue.severity}" ontouchstart="startIssueLongPress(${issue.id},event)" ontouchend="cancelIssueLongPress()" ontouchmove="cancelIssueLongPress()" onmousedown="startIssueLongPress(${issue.id},event)" onmouseup="cancelIssueLongPress()" onmouseleave="cancelIssueLongPress()">
       <div class="issue-header">
         <div class="issue-text">${escapeHtml(issue.description)}</div>
         <span class="issue-badge badge-${issue.severity}">${issue.severity}</span>
@@ -907,6 +1009,37 @@ function renderIssues() {
       ${(()=>{const pl=(issue.photos&&issue.photos.length>0)?issue.photos:(issue.photo?[issue.photo]:[]);return pl.length>0?`<div style="display:grid;grid-template-columns:repeat(${Math.min(pl.length,3)},1fr);gap:4px;margin-top:8px">${pl.map(s=>`<img src="${s}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;">`).join('')}</div>`:'';})()}
     </div>
   `).join('');
+}
+
+// Long-press to move issue to a different silo
+let _issueLpTimer = null;
+function startIssueLongPress(issueId, e) {
+  e.stopPropagation();
+  _issueLpTimer = setTimeout(() => {
+    _issueLpTimer = null;
+    moveIssueSilo(issueId);
+  }, 600);
+}
+function cancelIssueLongPress() {
+  if (_issueLpTimer) { clearTimeout(_issueLpTimer); _issueLpTimer = null; }
+}
+function moveIssueSilo(issueId) {
+  const silos = currentInspection.silos;
+  const others = silos.map((s, i) => ({ i, name: s.name || 'Silo ' + (i + 1) })).filter(x => x.i !== currentSiloIndex);
+  if (others.length === 0) { toast('No other silos to move to'); return; }
+  const list = others.map((x, n) => (n + 1) + '. ' + x.name).join('\n');
+  const answer = prompt('Hold to move issue.\nSend to which silo?\n\n' + list + '\n\nEnter number:');
+  if (answer === null) return;
+  const n = parseInt(answer);
+  if (!n || n < 1 || n > others.length) { toast('Invalid selection'); return; }
+  const toIdx = others[n - 1].i;
+  const issueIdx = silos[currentSiloIndex].issues.findIndex(x => x.id === issueId);
+  if (issueIdx === -1) return;
+  const [issue] = silos[currentSiloIndex].issues.splice(issueIdx, 1);
+  silos[toIdx].issues.push(issue);
+  saveInspection();
+  renderSiloScreen();
+  toast('Issue moved to ' + (silos[toIdx].name || 'Silo ' + (toIdx + 1)) + ' ✓');
 }
 
 function resetIssueForm() {
@@ -1092,6 +1225,8 @@ const LOGO_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAL4AAAEJCAMAAAAdEm3WAAAA9lBMVEX///8sLo
 function b64toU8(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
 function decodePhoto(url){if(!url)return null;const m=url.match(/^data:image\/(png|jpeg|jpg|gif|bmp|webp);base64,(.+)$/);if(!m)return null;let type=m[1];if(type==='jpg')type='jpeg';return{type,buf:b64toU8(m[2])};}
 function getPhotos(issue){return(issue.photos&&issue.photos.length>0)?issue.photos:(issue.photo?[issue.photo]:[]);}
+function getImgDims(url){return new Promise(res=>{const img=new Image();img.onload=()=>res({w:img.naturalWidth,h:img.naturalHeight});img.onerror=()=>res({w:360,h:270});img.src=url;});}
+function scaledDims(w,h,maxW,maxH){const r=Math.min(maxW/w,(maxH||9999)/h,1);return{w:Math.round(w*r),h:Math.round(h*r)};}
 function nextYear(d){const dt=new Date(d);dt.setFullYear(dt.getFullYear()+1);return dt.toISOString().split('T')[0];}
 
 async function generateReport(insp) {
@@ -1126,15 +1261,25 @@ async function generateReport(insp) {
     function sevLabel(s){return s==='major'?'MAJOR':s==='minor'?'MINOR':'MONITOR';}
     function sevBg(s){return s==='major'?MAJOR_BG:s==='minor'?MINOR_BG:MON_BG;}
     function sevFg(s){return s==='major'?MAJOR_FG:s==='minor'?MINOR_FG:MON_FG;}
-    function condOf(silo){return silo.issues.some(i=>i.severity==='major')?'FAIL':silo.issues.length>0?'ADVISORY':'PASS';}
-    function condCol(c){return c==='FAIL'?MAJOR_FG:c==='ADVISORY'?MINOR_FG:MON_FG;}
+    function condOf(silo){return silo.issues.some(i=>i.severity==='major')?'PASS WITH REQUIRED ACTIONS':silo.issues.length>0?'PASS WITH RECOMMENDED ACTIONS':'PASS';}
+    function condCol(c){return c==='FAIL'?'FFFFFF':c==='PASS WITH REQUIRED ACTIONS'?'FFFFFF':c==='PASS WITH RECOMMENDED ACTIONS'?'000000':'FFFFFF';}
+    function condBg(c){return c==='FAIL'?'C62828':c==='PASS WITH REQUIRED ACTIONS'?'E65100':c==='PASS WITH RECOMMENDED ACTIONS'?'F9A825':'2E7D32';}
+    function notesBg(c){return c==='FAIL'?'FFEBEE':c==='PASS WITH REQUIRED ACTIONS'?'FFF3E0':c==='PASS WITH RECOMMENDED ACTIONS'?'FFFDE7':'E8F5E9';}
     function imgRun(buf,type,w,h){return new ImageRun({data:buf,type,transformation:{width:w||360,height:h||270},altText:{title:'photo',description:'photo',name:'photo'}});}
+
+    // Pre-compute image dimensions for all photos to preserve aspect ratio
+    const _allPhotoUrls=[insp.sitePhoto,...insp.silos.flatMap(s=>s.issues.flatMap(i=>getPhotos(i)))].filter(Boolean);
+    const _dimCache={};
+    await Promise.all(_allPhotoUrls.map(async url=>{_dimCache[url]=await getImgDims(url);}));
+    function photoDims(url,maxW,maxH){const d=_dimCache[url]||{w:maxW,h:maxH||maxW};return scaledDims(d.w,d.h,maxW,maxH||9999);}
 
     const allIssues=insp.silos.flatMap(s=>s.issues);
     const nMaj=allIssues.filter(i=>i.severity==='major').length;
     const nMin=allIssues.filter(i=>i.severity==='minor').length;
     const nMon=allIssues.filter(i=>i.severity==='monitor').length;
     const nFail=insp.silos.filter(s=>condOf(s)==='FAIL').length;
+    const nReq=insp.silos.filter(s=>condOf(s)==='PASS WITH REQUIRED ACTIONS').length;
+    const nRec=insp.silos.filter(s=>condOf(s)==='PASS WITH RECOMMENDED ACTIONS').length;
     const nPass=insp.silos.filter(s=>condOf(s)==='PASS').length;
 
     const numbering={config:[{reference:'bullets',levels:[{level:0,format:LevelFormat.BULLET,text:'•',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:560,hanging:280}}}}]}]};
@@ -1158,7 +1303,7 @@ async function generateReport(insp) {
       ]}))}),sp(1));
 
     const sitePhoto=decodePhoto(insp.sitePhoto);
-    if(sitePhoto){children.push(new Paragraph({children:[imgRun(sitePhoto.buf,sitePhoto.type,440,200)],alignment:AlignmentType.CENTER,spacing:{before:0,after:120}}));}
+    if(sitePhoto){const spd=photoDims(insp.sitePhoto,440);children.push(new Paragraph({children:[imgRun(sitePhoto.buf,sitePhoto.type,spd.w,spd.h)],alignment:AlignmentType.CENTER,spacing:{before:0,after:120}}));}
 
     const hw=Math.floor(CW/2);
     children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[hw,hw],rows:[
@@ -1230,9 +1375,9 @@ async function generateReport(insp) {
 
     // Standards
     children.push(ph('STANDARDS'));
-    children.push(p([t('The following standards, guidance and regulations are used to inform our assessments and recommendations:')]));
+    children.push(p([t('THE FOLLOWING STANDARDS, GUIDANCE AND REGULATIONS ARE USED TO INFORM OUR ASSESSMENTS AND RECOMMENDATIONS. THESE STANDARDS REQUIRE NOT ONLY INITIAL COMPLIANCE, BUT ONGOING MONITORING. REGULAR INSPECTIONS BY BARTON FABRICATIONS PROVIDE DOCUMENTED SUPPORTING EVIDENCE OF A SILO OWNER\'S DUE DILIGENCE EFFORTS TO CONFORM WITH:')]));
     children.push(sp(2));
-    ['PROVISION AND USE OF WORK EQUIPMENT REGULATIONS 1998 (PUWER)','EN 1999-1-1 EUROCODE 9: DESIGN OF ALUMINIUM STRUCTURES','EN 1993-1-11 EUROCODE 3 - DESIGN OF STEEL STRUCTURES','BS EN ISO 14122-2 SAFETY OF MACHINERY - WORKING PLATFORMS AND WALKWAYS','BS EN ISO 14122-3 SAFETY OF MACHINERY - STAIRS, STEPLADDERS AND GUARD-RAILS','BS EN ISO 14122-4 SAFETY OF MACHINERY - FIXED LADDERS','BS EN 1090 STEEL STRUCTURES AND ALUMINIUM STRUCTURES','ATEX DIRECTIVE 2014/34/EU - EQUIPMENT','ATEX DIRECTIVE 1999/92/EC - WORKPLACE','DANGEROUS SUBSTANCES AND EXPLOSIVE ATMOSPHERE REGULATIONS 2002 (DSEAR)','BS EN 14460 EXPLOSION RESISTANT EQUIPMENT','EN 14491 DUST EXPLOSION VENTING PROTECTIVE SYSTEMS'].forEach(s=>
+    ['PROVISION AND USE OF WORK EQUIPMENT REGULATIONS 1998 (PUWER).','EN 1999-1-1 EUROCODE 9: DESIGN OF ALUMINIUM STRUCTURES.','EN 1991-1-4 EUROCODE 9: DESIGN OF ALUMINIUM STRUCTURES.','EN 1993-1-11 EUROCODE 3 - DESIGN OF STEEL STRUCTURES.','BS EN ISO 14122-2 SAFETY OF MACHINERY. PERMANENT ACCESS TO MACHINERY  - WORKING PLATFORMS AND WALKWAYS.','BS EN ISO 14122-3 SAFETY OF MACHINERY. PERMANENT ACCESS TO MACHINERY  - STAIRS, STEPLADDERS AND GUARD-RAILS.','BS EN ISO 14122-4 SAFETY OF MACHINERY. PERMANENT ACCESS TO MACHINERY  - FIXED LADDERS.','BS EN 1090 STEEL STRUCTURES AND ALUMINIUM STRUCTURES.','ATEX DIRECTIVE 2014/34/EU - EQUIPMENT.','ATEX DIRECTIVE 1999/92/EC - WORKPLACE.','DANGEROUS SUBSTANCES AND EXPLOSIVE ATMOSPHERE REGULATIONS 2002 (DSEAR).','HSE DSEAR CODE OF PRACTICE L138.','BS EN 60079-10-2:2015 CLASSIFICATION OF AREAS - EXPLOSIVE DUST ATMOSPHERES.','BS EN 60079-17:2014 EXPLOSIVE ATMOSPHERES - ELECTRICAL INSTALLATIONS.','BS EN 14460 EXPLOSION RESISTANT EQUIPMENT.','EN 14491 DUST EXPLOSION VENTING PROTECTIVE SYSTEMS.'].forEach(s=>
       children.push(new Paragraph({numbering:{reference:'bullets',level:0},children:[t(s,{size:19})],spacing:{before:0,after:60}})));
     children.push(new Paragraph({children:[new PageBreak()]}));
 
@@ -1245,9 +1390,15 @@ async function generateReport(insp) {
       const cond=condOf(silo);
       const cc=condCol(cond);
       children.push(new Paragraph({text:name.toUpperCase(),heading:HeadingLevel.HEADING_1,spacing:{before:0,after:80}}));
+      const siloInfoParts=[silo.height?'Height: '+silo.height+'mm':'',silo.diameter?'Diameter: '+silo.diameter+'mm':'',silo.materialStored?'Material stored: '+silo.materialStored:''].filter(Boolean);
+      const siloInfoText=siloInfoParts.length>0?siloInfoParts.join(' | '):'Information to be confirmed from data plate.';
+      const dpDisclaimer='The following information is taken from the silo manufacturer\'s data plate and is reproduced for reference only. Barton Fabrications accepts no responsibility for the accuracy of this data or its use in load calculations.';
       children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[
         new TableRow({children:[new TableCell({borders:ab,shading:sh('F0F0F0'),margins:cmL,width:{size:CW,type:WidthType.DXA},
-          children:[p([tb('SILO INFORMATION: ',{color:BLUE}),t(silo.info||'Site silo - see inspection notes below')])]})]}),
+          children:[
+            p([t(dpDisclaimer,{size:17,color:'888888',italics:true})]),
+            p([tb('SILO INFORMATION: ',{color:BLUE}),t(siloInfoText)])
+          ]})]})
       ]}),sp(2));
       if(silo.issues.length===0){
         children.push(p([t('No defects or observations identified during this inspection.',{color:MON_FG})]));
@@ -1262,7 +1413,7 @@ async function generateReport(insp) {
               const decoded=decodePhoto(photoUrl);
               if(decoded){
                 const fig='Figure '+figCount;
-                appendixPhotos.push({num:figCount,caption:name+': '+issue.description,buf:decoded.buf,type:decoded.type});
+                appendixPhotos.push({num:figCount,caption:name+': '+issue.description,buf:decoded.buf,type:decoded.type,url:photoUrl});
                 refs.push(fig);
                 figCount++;
               }
@@ -1280,10 +1431,10 @@ async function generateReport(insp) {
           ...obsRows
         ]}),sp(2));
       }
-      const note=silo.notes||(cond==='FAIL'?'One or more major observations identified. Immediate action required. Continued operation should be approached with the highest degree of caution.':cond==='ADVISORY'?'Minor observations identified. These should be addressed in a timely manner to prevent further deterioration.':'Silo is in satisfactory condition. Continue routine monitoring and annual inspection programme.');
+      const note=silo.notes||(cond==='FAIL'?'One or more critical observations have been identified that present an immediate safety risk. Continued operation is not recommended until remedial works are completed.':cond==='PASS WITH REQUIRED ACTIONS'?'Significant observations have been identified that require attention. Continued operation should be approached with caution and the required actions addressed without delay.':cond==='PASS WITH RECOMMENDED ACTIONS'?'The silo is in generally good condition. Minor observations have been noted; addressing these in a timely manner will maintain the silo in good working order.':'The silo is in good condition with no observations noted. Continue the routine annual inspection programme.');
       children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:[CW],rows:[
-        new TableRow({children:[new TableCell({borders:ab,shading:sh('FAFAFA'),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([tb('NOTES: ',{color:MID}),t(note)])]})]}) ,
-        new TableRow({children:[new TableCell({borders:ab,shading:sh(cond==='FAIL'?MAJOR_BG:cond==='ADVISORY'?MINOR_BG:MON_BG),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([tb('CONDITION: ',{color:MID}),tb(cond,{color:cc,size:24})])]})]}),
+        new TableRow({children:[new TableCell({borders:ab,shading:sh(notesBg(cond)),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([t(note)])]})]}) ,
+        new TableRow({children:[new TableCell({borders:ab,shading:sh(condBg(cond)),margins:cmL,width:{size:CW,type:WidthType.DXA},children:[p([tb('CONDITION: '+cond,{color:cc,size:22})],{alignment:AlignmentType.CENTER})]})]}),
       ]}));
       if(idx<insp.silos.length-1) children.push(new Paragraph({children:[new PageBreak()]}));
       else children.push(sp(6));
@@ -1295,10 +1446,10 @@ async function generateReport(insp) {
       const c=condOf(silo),cc=condCol(c);
       const maj=silo.issues.filter(i=>i.severity==='major').length;
       const min=silo.issues.filter(i=>i.severity==='minor').length+silo.issues.filter(i=>i.severity==='monitor').length;
-      const note=c==='FAIL'?silo.name+' has '+maj+' major observation(s) requiring immediate attention.':c==='ADVISORY'?silo.name+' is operable with '+min+' observation(s) to address in the short term.':silo.name+' is in satisfactory condition with no observations.';
+      const note=c==='FAIL'?silo.name+' has critical observation(s) presenting an immediate safety risk. Continued operation is not recommended.':c==='PASS WITH REQUIRED ACTIONS'?silo.name+' has '+maj+' major observation(s) requiring action.':c==='PASS WITH RECOMMENDED ACTIONS'?silo.name+' is in generally good condition with minor observation(s) to address.':silo.name+' is in good condition with no observations.';
       children.push(p([tb(silo.name+': ',{color:cc}),t(note)]));
     });
-    children.push(sp(2),p([t('Total silos inspected: '+insp.silos.length+'. FAIL: '+nFail+'. ADVISORY: '+(insp.silos.length-nFail-nPass)+'. PASS: '+nPass+'.')]),new Paragraph({children:[new PageBreak()]}));
+    children.push(sp(2),p([t('Total silos inspected: '+insp.silos.length+'. FAIL: '+nFail+'. PASS WITH REQUIRED ACTIONS: '+nReq+'. PASS WITH RECOMMENDED ACTIONS: '+nRec+'. PASS: '+nPass+'.')]),new Paragraph({children:[new PageBreak()]}));
 
     // Recommended Actions
     children.push(ph('RECOMMENDED ACTIONS'));
@@ -1307,18 +1458,18 @@ async function generateReport(insp) {
     const actions=[];
     insp.silos.forEach(silo=>{
       silo.issues.forEach(issue=>{
-        actions.push({silo:silo.name,action:issue.description,priority:issue.severity==='major'?'Immediate':'Short-Term',pFg:issue.severity==='major'?MAJOR_FG:MINOR_FG,pBg:issue.severity==='major'?MAJOR_BG:MINOR_BG,cond:condOf(silo)});
+        actions.push({silo:silo.name,action:issue.description,priority:issue.severity==='major'?'Immediate':issue.severity==='minor'?'Short-Term':'Monitor',pFg:issue.severity==='major'?MAJOR_FG:issue.severity==='minor'?MINOR_FG:MON_FG,pBg:issue.severity==='major'?MAJOR_BG:issue.severity==='minor'?MINOR_BG:MON_BG,recAction:issue.severity==='major'?'Immediate action required. Refer to full inspection report for detailed recommendations.':issue.severity==='minor'?'Address in a timely manner. Refer to full inspection report for detailed recommendations.':'Monitor at next scheduled inspection. No immediate action required.'});
       });
     });
-    actions.push({silo:'All Silos',action:'Implement annual PUWER inspection programme. Schedule next inspection: '+nextYear(insp.date)+'.',priority:'Ongoing',pFg:MON_FG,pBg:MON_BG,cond:''});
-    const aW=[1800,0,1700,1800]; aW[1]=CW-aW[0]-aW[2]-aW[3];
+    actions.push({silo:'All Silos',action:'Implement annual PUWER inspection programme. Schedule next inspection: '+nextYear(insp.date)+'.',priority:'Ongoing',pFg:MON_FG,pBg:MON_BG,recAction:'Schedule next annual PUWER silo inspection.'});
+    const aW=[1800,0,1700,2400]; aW[1]=CW-aW[0]-aW[2]-aW[3];
     children.push(new Table({width:{size:CW,type:WidthType.DXA},columnWidths:aW,rows:[
-      new TableRow({tableHeader:true,children:[tcH('SILO',aW[0]),tcH('RECOMMENDED ACTION',aW[1]),tcH('PRIORITY',aW[2]),tcH('CONDITION',aW[3])]}),
+      new TableRow({tableHeader:true,children:[tcH('SILO',aW[0]),tcH('OBSERVATION',aW[1]),tcH('PRIORITY',aW[2]),tcH('RECOMMENDED ACTION',aW[3])]}),
       ...actions.map((a,i)=>new TableRow({children:[
         new TableCell({borders:ab,shading:sh(i%2===0?WHITE:TBL_ALT),margins:cmL,width:{size:aW[0],type:WidthType.DXA},children:[p([tb(a.silo,{size:19})])]}),
         new TableCell({borders:ab,shading:sh(i%2===0?WHITE:TBL_ALT),margins:cmL,width:{size:aW[1],type:WidthType.DXA},children:[p([t(a.action,{size:19})])]}),
         new TableCell({borders:ab,shading:sh(a.pBg),margins:cm,width:{size:aW[2],type:WidthType.DXA},children:[p([tb(a.priority,{size:17,color:a.pFg})],{alignment:AlignmentType.CENTER})]}),
-        new TableCell({borders:ab,shading:sh(a.cond==='FAIL'?MAJOR_BG:a.cond==='PASS'?MON_BG:a.cond==='ADVISORY'?MINOR_BG:'F5F5F5'),margins:cm,width:{size:aW[3],type:WidthType.DXA},children:[p([tb(a.cond||'-',{size:17,color:condCol(a.cond||'PASS')})],{alignment:AlignmentType.CENTER})]}),
+        new TableCell({borders:ab,shading:sh(i%2===0?WHITE:TBL_ALT),margins:cmL,width:{size:aW[3],type:WidthType.DXA},children:[p([t(a.recAction,{size:18})])]}),
       ]})),
     ]}),sp(6));
 
@@ -1327,8 +1478,9 @@ async function generateReport(insp) {
     if(appendixPhotos.length===0){
       children.push(p([t('Photographs taken during the inspection via the Silo Inspector app will appear here automatically.')]));
     } else {
-      appendixPhotos.forEach(({num,caption,buf,type})=>{
-        children.push(new Paragraph({children:[imgRun(buf,type)],spacing:{before:100,after:80}}),
+      appendixPhotos.forEach(({num,caption,buf,type,url})=>{
+        const apd=photoDims(url||'',440);
+        children.push(new Paragraph({children:[imgRun(buf,type,apd.w,apd.h)],spacing:{before:100,after:80}}),
           p([tb('Figure '+num+' ',{color:BLUE}),t('- '+caption,{color:MID,size:18})]),sp(4));
       });
     }
